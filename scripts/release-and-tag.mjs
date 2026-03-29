@@ -170,7 +170,8 @@ if (isWorkingTreeClean) {
 
 
 // ----------------
-// Fetch tags, get latest tag on remote, and local version from package.json
+// Fetch tags, list all local and remote tags, get latest in each
+// and get target version from package.json
 // ----------------
 
 // Fetch tags from origin
@@ -182,20 +183,33 @@ const branchRes = run('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
 if (branchRes.error || branchRes.status !== 0) fatal('git failed while getting current branch', branchRes);
 const branch = branchRes.stdout.toString().trim();
 
+// List all local tags, filter by semver, sort, and get latest
+const localTagsRes = run('git', ['tag']);
+if (localTagsRes.error || localTagsRes.status !== 0) fatal('git failed while listing local tags', localTagsRes);
+const localTagsLines = localTagsRes.stdout ? localTagsRes.stdout.toString().trim().split(/\r?\n/) : [];
+// Match v<semver> tags, extract version, validate, and sort
+const localTagsSorted = localTagsLines
+    .map(line => {
+        const match = line.match(/^v(.+)$/);
+        return match && semver.valid(match[1]) ? match[1] : null;
+    })
+    .filter(Boolean)
+    .sort(semver.rcompare);
+const latestLocalTag = localTagsSorted.length ? localTagsSorted[0] : '(none)';
+
 // Fetch all remote tags and parse for all tags and the target tag
 const tagsRes = run('git', ['ls-remote', '--tags', 'origin']);
 if (tagsRes.error || tagsRes.status !== 0) fatal('git failed while listing remote tags', tagsRes);
-const tagLines = tagsRes.stdout ? tagsRes.stdout.toString().split('\n') : [];
-const tags = [];
-for (const line of tagLines) {
-    const match = line.match(/refs\/tags\/v([^\n^{}]+)$/);
-    if (match) {
-        const tag = match[1];
-        if (semver.valid(tag)) tags.push(tag);
-    }
-}
-const sortedTags = tags.slice().sort(semver.rcompare);
-const latestRemoteTag = sortedTags.length ? sortedTags[sortedTags.length - 1] : '(none)';
+const remoteTagsLines = tagsRes.stdout ? tagsRes.stdout.toString().split('\n') : [];
+// Match refs/tags/v<semver> tags, extract version, validate, and sort
+const remoteTagsSorted = remoteTagsLines
+    .map(line => {
+        const match = line.match(/refs\/tags\/v(.+)$/);
+        return match && semver.valid(match[1]) ? match[1] : null;
+    })
+    .filter(Boolean)
+    .sort(semver.rcompare);
+const latestRemoteTag = remoteTagsSorted.length ? remoteTagsSorted[0] : '(none)';
 
 // release version is read from package.json.version
 if (!existsSync(pkgPath)) fatal('package.json not found');
@@ -208,13 +222,15 @@ if (!pkgVersion) fatal('no version found in package.json');
 // Infos and potential bump
 // ----------------
 
-info(`All existing tags: ${tags.length ? sortedTags.join(', ') : '(none)'}`);
-info(`Latest tag on origin: ${latestRemoteTag}`);
+info(`All local tags: ${localTagsSorted.length ? localTagsSorted.join(', ') : '(none)'}`);
+info(`Latest local tag: ${latestLocalTag}`);
+info(`All remote tags: ${remoteTagsSorted.length ? remoteTagsSorted.join(', ') : '(none)'}`);
+info(`Latest remote tag: ${latestRemoteTag}`);
 info(`Version from package.json: (v)${pkgVersion}`);
 
 // If the target tag is already on remote, prompt to bump version
 let targetVersion = pkgVersion;
-if (tags.includes(pkgVersion)) {
+if (remoteTagsSorted.includes(pkgVersion)) {
     const newVersion = semver.inc(pkgVersion, 'patch');
 
     info(`Latest remote tag (${latestRemoteTag}) matches the package version ${pkgVersion}.`);
@@ -240,7 +256,7 @@ if (opts.commit) {
     // Ensure the local tag does not already exist
     const localCheck = run('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${targetTagName}`]);
     if (localCheck.error) fatal('git failed while checking local tag', localCheck);
-    if (localCheck.status === 0) fatal('Local tag should NOT already exist when committing.');
+    if (localCheck.status === 0) fatal(`${targetTagName} should NOT already exist locally when committing.`);
     else success(`Local tag ${targetTagName} does not exist yet. Continuing...`);
 
     // Sync lockfile and run release build
