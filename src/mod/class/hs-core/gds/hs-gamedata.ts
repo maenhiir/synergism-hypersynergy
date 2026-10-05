@@ -50,7 +50,12 @@ export class HSGameData extends HSModule {
     #gdsEnabled = false;
     #gdsCSS = `
         #savegame {
-            display: none !important;
+            font-size: 0;
+        }
+        #savegame::after {
+            content: "[HS] Perma-saved by GDS";
+            font-size: 12px;
+            visibility: visible;
         }
         #saveinfo {
             display: none !important;

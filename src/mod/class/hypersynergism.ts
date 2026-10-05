@@ -180,9 +180,6 @@ export class Hypersynergism {
                     this.#buildGridFullSpanDiv('hs-panel-amb-heater-p', `Export an extended save file string for the <a href="${HSGlobal.General.heaterUrl}" class="hs-link" target="_blank">Ambrosia Heater sheet</a>.`),
                     HSUIC.Button({ id: 'hs-panel-amb-heater-btn', text: 'Copy Heater Data' }),
                     HSUIC.Button({ id: 'hs-panel-amb-heater-compute-btn', text: 'Ambrosia Heater' }),
-                    this.#buildGridSectionHeader('References'),
-                    HSUIC.Button({ id: 'hs-panel-cor-ref-btn', text: 'Corruption Ref.' }),
-                    HSUIC.Button({ id: 'hs-panel-cor-ref-btn-2', text: 'Crpt. Onemind' }),
                     this.#buildGridSectionHeader('Mod links'),
                     HSUIC.Button({ id: 'hs-panel-mod-github-btn', text: 'Mod Github' }),
                     HSUIC.Button({ id: 'hs-panel-mod-wiki-btn', text: 'Mod Wiki' }),
@@ -251,14 +248,6 @@ export class Hypersynergism {
 
         this.#bindToolsButton('#hs-panel-amb-heater-compute-btn', async () => {
             await HSHeaterInputModalController.openHeaterComputationModal();
-        });
-
-        this.#bindToolsButton('#hs-panel-cor-ref-btn', () => {
-            hsui.Modal({ htmlContent: `<img class="hs-modal-img" src="${corruption_ref_b64}" />`, needsToLoad: true });
-        });
-
-        this.#bindToolsButton('#hs-panel-cor-ref-btn-2', () => {
-            hsui.Modal({ htmlContent: `<img class="hs-modal-img" src="${corruption_ref_b64_2}" />`, needsToLoad: true });
         });
 
         this.#bindToolsButton('#hs-panel-mod-github-btn', () => this.#openUrl(HSGlobal.General.modGithubUrl));
