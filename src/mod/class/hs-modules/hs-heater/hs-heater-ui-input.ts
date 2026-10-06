@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import { HSUIC } from "../../hs-core/hs-ui-components";
 import { HSSettings } from "../../hs-core/settings/hs-settings";
+import { HSIcons } from "../../hs-utils/hs-icons";
 import { escapeHtml } from "./hs-heater-utils";
 import { getEffectiveHeaterIconSrc, subscribeHeaterIconOverrideChanges, unsubscribeHeaterIconOverrideChanges, HeaterIconOverrideChangeListener } from "./hs-heater-icon-store";
 import { HSHeaterResultStore } from "./hs-heater-result-store";
@@ -114,6 +115,17 @@ export class HSHeaterUIInput {
                 <tbody>${rows.join('')}</tbody>
             </table>
         `;
+    }
+
+    static applyInputIconSprites(modal: HTMLElement): void {
+        for (const field of this.inputDefinitions) {
+            const icon = (field as HeaterInputField).icon;
+            if (!icon) continue;
+            const iconElement = modal.querySelector<HTMLElement>(`[data-heater-icon-key="${field.key}"]`);
+            if (iconElement) {
+                HSIcons.applyBackground(iconElement, icon, 20);
+            }
+        }
     }
 
     static buildHeaterOptionToggleGrid(active: Record<HeaterBranchId, boolean>): string {
@@ -421,9 +433,11 @@ export class HSHeaterUIInput {
 
     static buildInputTableRow(field: HeaterInputField, value: number | Decimal | boolean): string {
         const lockId = `hs-heater-lock-${field.key}`;
-        const iconHtml = field.url
-            ? `<img src="${field.url}" alt="${escapeHtml(field.label)}" class="hs-heater-icon-image" />`
-            : '';
+        const iconHtml = field.icon
+            ? `<span class="hs-heater-icon-image" data-heater-icon-key="${field.key}" role="img" aria-label="${escapeHtml(field.label)}"></span>`
+            : field.url
+                ? `<img src="${field.url}" alt="${escapeHtml(field.label)}" class="hs-heater-icon-image" />`
+                : '';
         const inputHtml = this.buildFieldInputHtml(field, value);
 
         return `

@@ -13,7 +13,6 @@ export type HSSettingRecord = Record<keyof HSSettingsDefinition, HSSetting<HSSet
 export interface HSSettingsDefinition {
     // Expand Cost Protection Settings
     expandCostProtection: ExpandCostProtectionSetting;
-    expandCostProtectionDoubleCap: ExpandCostProtectionDoubleCap
     expandCostProtectionNotifications: ExpandCostProtectionNotifications;
 
     // Notification Settings
@@ -167,7 +166,6 @@ export interface HSSelectStringsSetting extends HSSettingBase<string[]> { }
 
 // Expand Cost Protection Settings
 export interface ExpandCostProtectionSetting extends HSSettingBase<number> { }
-export interface ExpandCostProtectionDoubleCap extends HSSettingBase<boolean> { }
 export interface ExpandCostProtectionNotifications extends HSSettingBase<boolean> { }
 
 // Notification Opacity Settings

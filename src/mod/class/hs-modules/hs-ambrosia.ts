@@ -777,10 +777,9 @@ export class HSAmbrosia extends HSModule
         if (!button) { HSLogger.warn('hookPersistentAmbrosiaLevelsToggleButton() could not find #showCurrAmbrosiaUpgrades', this.context); return; }
         this.#persistentAmbrosiaLevelsToggleButton = button;
 
-        button.removeAttribute('title');
+        button.title = 'Toggle persistent Amb Levels Display';
         button.setAttribute('aria-label', 'Toggle persistent Amb Levels Display');
-        button.dataset.tooltip = 'Toggle persistent Amb Levels Display';
-        button.classList.add('hs-tooltip');
+        button.classList.remove('hs-tooltip');
 
         this.#persistentAmbrosiaLevelsToggleHandler ??= (event: Event) => {
             event.preventDefault();

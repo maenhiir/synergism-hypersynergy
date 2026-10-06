@@ -10,6 +10,7 @@ export type HeaterResultSectionConfig = {
 
 type HeaterResultTypeConfig = {
     label: string;
+    description: string;
     section: HeaterResultSectionId;
     icon?: string;
     rowLabels?: readonly string[];
@@ -50,62 +51,74 @@ const HEATER_RESULT_SECTION_CONFIG: Record<HeaterResultSectionId, HeaterResultSe
 const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
     luck: {
         label: "Blue Luck",
+        description: "",
         section: "common",
         icon: "Pictures/Default/BlueberryLuck2.png",
     },
     rLuck: {
         label: "Red Luck",
+        description: "",
         section: "common",
         icon: "Pictures/Default/BlueberryFreeRedLuckUpgrades.png",
     },
     allAmb: {
         label: "All Ambrosia",
+        description: "",
         section: "common",
         icon: "Pictures/Default/BlueberryFreeGenerationLevels.png",
     },
     quarks: {
         label: "Quarks",
+        description: "",
         section: "common",
         icon: "Pictures/Default/BlueberryQuarks2.png",
     },
     cubes: {
         label: "3-7D Cubes",
+        description: "Post-AOAG only, check the H loadouts below for pre-aoag cube loadouts.",
         section: "common",
         icon: "Pictures/Default/BlueberryCubes.png",
     },
     oct: {
         label: "Octeracts",
+        description: "Intended for Post-AOAG.",
         section: "common",
         icon: "Pictures/Default/BlueberryCubes3.png",
     },
     obt: {
         label: "Obtainium",
+        description: "Pre-AOAG OR Post-AOAG, based on the 'Post-AoAG (Obt/Off)' field. You should have pre-AOAG inputs if you want to use it pre-AOAG, and vice versa.",
         section: "obtOff",
         icon: "Pictures/Default/BlueberryObtainium.png",
     },
     off: {
         label: "Offering",
+        description: "Pre-AOAG OR Post-AOAG, based on the 'Post-AoAG (Obt/Off)' field. You should have pre-AOAG inputs if you want to use it pre-AOAG, and vice versa.",
         section: "obtOff",
         icon: "Pictures/Default/BlueberryOffering.png",
     },
     hyperflux: {
         label: "Hyperflux (H0–H7)",
+        description: "(Pre-AOAG only) H loadouts from Hyperflux lvl 0 to 7.\nCheck the p4x4eq tooltip to understand how to chose from them. H0-3 are for early players with low amb. H4 will usually be good for early sing while the rest would be for the middle/end of pre-aoag. (again, check p4x4eq)",
         section: "p4x4",
         rowLabels: ["H0", "H1", "H2", "H3", "H4", "H5", "H6", "H7"],
         rowIcons: Array(8).fill("Pictures/Default/BlueberryHyperflux.png"),
     },
     sr1: {
         label: "Max SR1",
+        description: "(Pre-AOAG only) Max SR1 first, then optimize for cube.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
         section: "p4x4",
         icon: "Pictures/Default/BlueberrySingReduction.png",
     },
     sr2: {
         label: "Max SR2",
+        description: "(Pre-AOAG only) Max SR2 first, then optimize for cube.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
         section: "p4x4",
         icon: "Pictures/Default/BlueberrySingReduction2.png",
     },
     ambOct: {
         label: "Max Amb + Oct",
+        description: "Late game loadout, only usable once you can max Ambrosia (which requires several tens of millions of amb).",
         section: "hybrid",
         icon: "Pictures/Default/BlueberryLuck4.png",
     },
@@ -240,6 +253,14 @@ export function resolveHeaterTypeLabel(key: string): string | null {
     }
 
     return config.label;
+}
+
+export function resolveHeaterTypeDescription(semanticId: string): string | null {
+    const parsed = parseHeaterTypeSemanticId(semanticId);
+    if (!parsed) return null;
+
+    const description = HEATER_RESULT_TYPE_CONFIG[parsed.baseKey].description.trim();
+    return description || null;
 }
 
 export function resolveHeaterTypeIconSrc(semanticId: string): string | null {

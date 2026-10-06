@@ -159,6 +159,7 @@ export class HSHeaterInputModalController {
         if (!modal) return;
 
         this.cacheInputsModalElements(modal);
+        HSHeaterUIInput.applyInputIconSprites(modal);
         HSHeaterUIInput.attachHeaterTypeSelectHandlers(modal, () => {
             if (this.currentInputsModalId) {
                 HSHeaterResultModalController.refreshSelectedTypeHighlights(this.currentInputsModalId, false);

@@ -242,6 +242,33 @@ export class HSHeaterUIStyles {
                 max-width: 8rem;
             }
 
+            .hs-heater-red-ambrosia-sort-button {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                width: 100%;
+                padding: 0;
+                border: 0;
+                background: transparent;
+                color: inherit;
+                font: inherit;
+                cursor: pointer;
+            }
+
+            .hs-heater-red-ambrosia-sort-button:hover {
+                color: #ffffff;
+            }
+
+            .hs-heater-red-ambrosia-sort-button:focus-visible {
+                outline: 2px solid #8eb5ff;
+                outline-offset: 2px;
+            }
+
+            .hs-heater-red-ambrosia-sort-button span {
+                opacity: 0.7;
+            }
+
             .hs-heater-red-ambrosia-cef-log-cell {
                 transition: background-color 0.2s ease;
                 background-color: rgba(75, 180, 90, var(--cef-log-alpha, 0));
@@ -514,6 +541,14 @@ export class HSHeaterUIStyles {
                 margin: 0;
             }
 
+            .hs-heater-type-cell-content {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                width: 100%;
+                min-width: 0;
+            }
+
             .hs-heater-results-table td:has(.hs-heater-type-icon),
             .hs-heater-subtable td:has(.hs-heater-type-icon) {
                 display: flex;
@@ -525,9 +560,34 @@ export class HSHeaterUIStyles {
                 display: flex;
                 align-items: center;
                 cursor: pointer;
-                width: 100%;
+                flex: 1 1 auto;
+                min-width: 0;
+                width: auto;
                 height: auto;
                 min-height: 22px;
+            }
+
+            .hs-heater-type-info-trigger {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                flex: 0 0 16px;
+                width: 16px;
+                height: 16px;
+                padding: 0;
+                border: 1px solid rgba(255, 255, 255, 0.4);
+                border-radius: 50%;
+                background: transparent;
+                color: inherit;
+                font-size: 11px;
+                line-height: 1;
+                cursor: help;
+                user-select: none;
+            }
+
+            .hs-heater-type-info-trigger:focus-visible {
+                outline: 2px solid #8eb5ff;
+                outline-offset: 2px;
             }
 
             .hs-heater-type-label {
@@ -678,6 +738,7 @@ export class HSHeaterUIStyles {
 
             /* === Heater Tooltip Overlays === */
             .hs-heater-loadout-json-tooltip,
+            .hs-heater-type-info-tooltip,
             #hs-heater-sync-settings-tooltip,
             #hs-heater-start-heater-tooltip,
             #hs-heater-topbar-help-tooltip {
@@ -696,6 +757,9 @@ export class HSHeaterUIStyles {
                 overflow-y: auto;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.5);
                 white-space: pre-wrap;
+            }
+            .hs-heater-type-info-tooltip {
+                max-width: 250px;
             }
             #hs-heater-sync-settings-tooltip {
                 white-space: normal !important;

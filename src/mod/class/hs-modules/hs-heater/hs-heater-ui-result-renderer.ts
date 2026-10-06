@@ -1,6 +1,6 @@
 import { escapeHtml } from "./hs-heater-utils";
 import { getEffectiveHeaterIconSrc } from "./hs-heater-icon-store";
-import { getHeaterResultSectionDefinitions, type HeaterResultSectionDef } from "./hs-heater-result-config";
+import { getHeaterResultSectionDefinitions, getHeaterTypeConfig, resolveHeaterTypeDescription, type HeaterResultSectionDef } from "./hs-heater-result-config";
 import type { NormalizedHeaterResultEntry } from "./hs-heater-result-store";
 import type { HeaterResultArrayKey, HeaterResultRow } from "../../../types/data-types/hs-heater-types";
 
@@ -26,20 +26,30 @@ type NormalizedResultRow = {
     maxedValue:         HeaterResultRow[typeof RESULT_COL_INDEX.maxed];
 };
 
-function buildTypeLabelWithIcon(label: string, semanticId?: string): string {
+function buildTypeLabelWithIcon(label: string, semanticId?: string, infoTitle = label): string {
     const safeLabel = escapeHtml(label);
+    const safeInfoTitle = escapeHtml(infoTitle);
+    const description = semanticId ? resolveHeaterTypeDescription(semanticId) : null;
     const effectiveIconSrc = semanticId ? getEffectiveHeaterIconSrc(semanticId) : null;
-    if (!effectiveIconSrc) return `<span class="hs-heater-type-label">${safeLabel}</span>`;
-
-    const buttonClasses = "hs-heater-type-icon-button";
-    const dataAttr = semanticId ? `data-heater-icon-id="${escapeHtml(semanticId)}"` : "";
-    const titleText = semanticId ? `title="Alt+click to edit icon; right-click to clear override"` : "";
-
-    return `
-        <button type="button" class="${buttonClasses}" ${dataAttr} ${titleText}>
+    const typeLabel = effectiveIconSrc
+        ? `<button type="button" class="hs-heater-type-icon-button" data-heater-icon-id="${escapeHtml(semanticId ?? '')}" title="Alt+click to edit icon; right-click to clear override">
             <img class="hs-heater-type-icon" src="${escapeHtml(effectiveIconSrc)}" alt="" aria-hidden="true" />
             <span class="hs-heater-type-label">${safeLabel}</span>
-        </button>`;
+        </button>`
+        : `<span class="hs-heater-type-label">${safeLabel}</span>`;
+
+    const infoTrigger = description
+        ? `<div class="hs-heater-type-info-trigger" tabindex="0" role="note"
+                data-info-title="${safeInfoTitle}"
+                data-info-content="${escapeHtml(description)}"
+                aria-label="More information about ${safeInfoTitle}">?</div>`
+        : '';
+
+    return `
+        <div class="hs-heater-type-cell-content">
+            ${typeLabel}
+            ${infoTrigger}
+        </div>`;
 }
 
 function formatCostCellValue(value: HeaterResultRow[typeof RESULT_COL_INDEX.cost | typeof RESULT_COL_INDEX.blueberryCost]): string {
@@ -106,15 +116,16 @@ function buildArraySectionDataRow(
     const isValidJson = !isUnaffordable && fullLoadout.trim().startsWith("{") && fullLoadout.trim().endsWith("}");
     const actionControlsHtml = buildLoadoutActionControls(escapedFullLoadout, escapeHtml(entry.label), isValidJson);
     const isSelectedType = selectedSemanticIds.has(entry.semanticId);
+    const infoTitle = getHeaterTypeConfig(entry.key)?.label ?? entry.label;
     const typeCellClass = isSelectedType ? ' class="hs-heater-selected-type-cell"' : '';
 
     const loadoutCell = isUnaffordable
         ? `<td>${escapeHtml(String(loadoutValue))}</td>`
         : `<td><div class="hs-heater-loadout-buttons">${actionControlsHtml}</div></td>`;
     const resultCell = rowSpan === 1
-        ? `<td${typeCellClass}>${buildTypeLabelWithIcon(entry.label, entry.semanticId)}</td>`
+        ? `<td${typeCellClass}>${buildTypeLabelWithIcon(entry.label, entry.semanticId, infoTitle)}</td>`
         : entry.rowIndex === 0
-            ? `<td${typeCellClass} rowspan="${rowSpan}">${buildTypeLabelWithIcon(entry.label, entry.semanticId)}</td>`
+            ? `<td${typeCellClass} rowspan="${rowSpan}">${buildTypeLabelWithIcon(entry.label, entry.semanticId, infoTitle)}</td>`
             : "";
     const blueberryCostCell = `<td>${formatCostCellValue(rowModel.blueberryCostValue)}</td>`;
     const costCell = `<td>${formatCostCellValue(rowModel.costValue)}</td>`;

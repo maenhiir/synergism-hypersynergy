@@ -19,19 +19,6 @@
       }
     }
   },
-  "expandCostProtectionDoubleCap": {
-    "settingName": "expandCostProtectionDoubleCap",
-    "settingDescription": "Hepteract double capacity unlocked?",
-    "settingHelpText": "Check this if you have the double capacity upgrade unlocked for hepteracts. This will make the expand cost protection setting work correctly.",
-    "settingType": "boolean",
-    "enabled": false,
-    "settingControl": {
-      "controlType": "switch",
-      "controlGroup": "hepteracts",
-      "controlPage": "hepteract",
-      "controlEnabledId": "hs-setting-hepteract-double-cap-btn"
-    }
-  },
   "expandCostProtectionNotifications": {
     "settingName": "expandCostProtectionNotifications",
     "settingDescription": "Suppress cost protection logs",
