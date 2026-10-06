@@ -95,6 +95,11 @@ export class HSAmbrosia extends HSModule
     #redProgressMinibarElement?: HTMLDivElement;
     #purpleProgressMinibarBarElement?: HTMLDivElement;
     #purpleProgressMinibarElement?: HTMLDivElement;
+    #blueIncomeElement?: HTMLParagraphElement;
+    #redIncomeElement?: HTMLParagraphElement;
+    #purpleIncomeElement?: HTMLParagraphElement;
+    #barIncomeRefreshQueue: Promise<void> = Promise.resolve();
+    #barIncomeRefreshTimer?: ReturnType<typeof setTimeout>;
 
     #hasPerformedInitialLoadoutMatch = false;
 
@@ -257,6 +262,12 @@ export class HSAmbrosia extends HSModule
         }
 
         this.updateActiveLoadout(slotEnum);
+
+        if (this.#isAmbrosiaTabActive
+            && HSAmbrosiaHelper.ensureLoadoutMode('LOAD')
+            && slotElement.classList.contains('activeBlueberryLoadout')) {
+            void this.#queueBarIncomeRefresh(true);
+        }
     }
 
 
@@ -941,7 +952,11 @@ export class HSAmbrosia extends HSModule
         if (this.#isAmbrosiaTabActive) return;
         this.#isAmbrosiaTabActive = true;
 
+        this.#ensureBarIncomeElements();
         await this.#attachAmbrosiaTabEvents();
+        this.subscribeGameDataChanges();
+        const useGameDataSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
+        void this.#queueBarIncomeRefresh(!useGameDataSetting.isEnabled());
 
         // RETIRED: Ambrosia AFK/idle swapper activation on tab entry.
         // if (this.#isIdleSwapEnabled) {
@@ -956,6 +971,8 @@ export class HSAmbrosia extends HSModule
     #onAmbrosiaTabLeave() {
         if (!this.#isAmbrosiaTabActive) return;
         this.#isAmbrosiaTabActive = false;
+        this.#clearScheduledBarIncomeRefresh();
+        this.unsubscribeGameDataChanges();
 
         this.#detachAmbrosiaTabEvents();
         this.#detachPersistentAmbrosiaLevelsDisplayListeners();
@@ -967,6 +984,132 @@ export class HSAmbrosia extends HSModule
 
         if (this.#state.persistentAmbrosiaLevelsDisplayEnabled) {
             this.#restorePersistentAmbrosiaLevelsDisplay();
+        }
+    }
+
+    #ensureBarIncomeElements(): void {
+        const ensureElement = (sectionId: string, elementId: string): HTMLParagraphElement | undefined => {
+            const section = document.getElementById(sectionId);
+            if (!section) return undefined;
+
+            let element = section.querySelector<HTMLParagraphElement>(`#${elementId}`);
+            if (!element) {
+                element = document.createElement('p');
+                element.id = elementId;
+                element.className = 'ambrosiaResourceModifiers';
+                element.title = 'Sustained expected rate for the active Ambrosia loadout.';
+                element.setAttribute('aria-live', 'polite');
+                section.appendChild(element);
+            }
+            return element;
+        };
+
+        this.#blueIncomeElement = ensureElement('ambrosiaDisplay', 'hs-ambrosia-expected-hourly');
+        this.#redIncomeElement = ensureElement('redAmbrosiaDisplay', 'hs-red-ambrosia-expected-hourly');
+        this.#purpleIncomeElement = ensureElement('purpleAmbrosiaDisplay', 'hs-purple-ambrosia-expected-hourly');
+    }
+
+    #queueBarIncomeRefresh(forceRefresh: boolean): Promise<void> {
+        const refresh = async () => {
+            if (!this.#isAmbrosiaTabActive) return;
+
+            this.#ensureBarIncomeElements();
+            const gameDataAPI = this.#cachedGameDataAPI
+                ?? HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI');
+            if (!gameDataAPI) {
+                this.#setBarIncomeUnavailable();
+                return;
+            }
+
+            try {
+                const gameData = forceRefresh
+                    ? await gameDataAPI.getForcedGameData()
+                    : gameDataAPI.getGameData();
+                if (forceRefresh) this.#clearScheduledBarIncomeRefresh();
+                if (!this.#isAmbrosiaTabActive) return;
+                if (!gameData) {
+                    this.#setBarIncomeUnavailable();
+                    return;
+                }
+
+                const income = gameDataAPI.ambrosia.calculateAmbrosiaBarIncome();
+                if (!income) {
+                    this.#setBarIncomeUnavailable();
+                    return;
+                }
+
+                const bluePerHour = income.blueAmbrosiaPerSecond * 3_600;
+                const redPerHour = income.redAmbrosiaPerSecond * 3_600;
+                const purplePerHour = income.purpleHoneyPerSecond * 3_600;
+                this.#renderIncomeRate(
+                    this.#blueIncomeElement,
+                    Number.isFinite(bluePerHour) ? HSUtils.N(bluePerHour) : 'unavailable',
+                    'amb',
+                    'var(--amber-text-color)'
+                );
+                this.#renderIncomeRate(
+                    this.#redIncomeElement,
+                    Number.isFinite(redPerHour) ? HSUtils.N(redPerHour) : 'unavailable',
+                    'ramb',
+                    'red'
+                );
+                this.#renderIncomeRate(
+                    this.#purpleIncomeElement,
+                    Number.isFinite(purplePerHour) ? HSUtils.N(purplePerHour) : 'unavailable',
+                    'phoney',
+                    'var(--purple-text-color)'
+                );
+            } catch (error) {
+                HSLogger.warn(`Could not calculate expected Ambrosia income: ${error}`, this.context);
+                this.#setBarIncomeUnavailable();
+            }
+        };
+
+        const queuedRefresh = this.#barIncomeRefreshQueue.then(refresh, refresh);
+        this.#barIncomeRefreshQueue = queuedRefresh.catch((error) => {
+            HSLogger.warn(`Ambrosia income refresh failed: ${error}`, this.context);
+        });
+        return queuedRefresh;
+    }
+
+    #setBarIncomeUnavailable(): void {
+        this.#renderIncomeRate(this.#blueIncomeElement, 'unavailable', 'amb', 'var(--amber-text-color)');
+        this.#renderIncomeRate(this.#redIncomeElement, 'unavailable', 'ramb', 'red');
+        this.#renderIncomeRate(this.#purpleIncomeElement, 'unavailable', 'phoney', 'var(--purple-text-color)');
+    }
+
+    #renderIncomeRate(
+        element: HTMLParagraphElement | undefined,
+        amount: string,
+        resource: 'amb' | 'ramb' | 'phoney',
+        color: string
+    ): void {
+        if (!element) return;
+
+        const amountElement = document.createElement('span');
+        amountElement.style.color = color;
+        amountElement.textContent = amount;
+        element.replaceChildren(
+            document.createTextNode('[HS] '),
+            amountElement,
+            document.createTextNode(` ${resource} / hour`)
+        );
+    }
+
+    #scheduleBarIncomeRefresh(): void {
+        if (!this.#isAmbrosiaTabActive) return;
+
+        this.#clearScheduledBarIncomeRefresh();
+        this.#barIncomeRefreshTimer = setTimeout(() => {
+            this.#barIncomeRefreshTimer = undefined;
+            void this.#queueBarIncomeRefresh(false);
+        }, 750);
+    }
+
+    #clearScheduledBarIncomeRefresh(): void {
+        if (this.#barIncomeRefreshTimer !== undefined) {
+            clearTimeout(this.#barIncomeRefreshTimer);
+            this.#barIncomeRefreshTimer = undefined;
         }
     }
 
@@ -1485,7 +1628,7 @@ export class HSAmbrosia extends HSModule
         if (gameDataMod && this.gameDataSubscriptionId) {
             // Only actually unsubscribe if the remaining minibar feature does not need game data.
             // RETIRED condition also checked: !this.#isIdleSwapActive
-            if (!this.#berryMinibarsEnabled) {
+            if (!this.#berryMinibarsEnabled && !this.#isAmbrosiaTabActive) {
                 gameDataMod.unsubscribeGameDataChange(this.gameDataSubscriptionId);
                 this.gameDataSubscriptionId = undefined;
                 HSLogger.debug(() => 'Unsubscribed from game data changes', this.context);
@@ -1506,6 +1649,10 @@ export class HSAmbrosia extends HSModule
 
         const gameData = gameDataAPI.getGameData();
         if (!gameData) return;
+
+        if (this.#isAmbrosiaTabActive) {
+            this.#scheduleBarIncomeRefresh();
+        }
 
         if (this.#berryMinibarsEnabled) {
             this.#updateBerryMinibars(gameData, gameDataAPI);

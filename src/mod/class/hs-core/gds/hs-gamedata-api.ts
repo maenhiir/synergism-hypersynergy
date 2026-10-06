@@ -583,6 +583,7 @@ export class HSGameDataAPI extends HSGameDataAPIPartial {
             getGameData: () => this.gameData,
             getMeData: () => this.meData,
             calculateLuck: (reduce_vals = true, true_base = false) => this.luck.calculateLuck(reduce_vals, true_base),
+            calculateRedAmbrosiaLuck: () => this.luck.calculateRedAmbrosiaLuck() as number,
             getShopUpgradeEffects: (upgradeKey, effectKey, mode) => quarkShop.getShopUpgradeEffects(upgradeKey as any, effectKey as any, mode),
             getSingularityChallengeEffect: (challengeKey, effectKey) => this.getSingularityChallengeEffect(challengeKey as any, effectKey as any),
             getAmbrosiaUpgradeEffects: (upgradeKey: string, mode?: CalculationMode) => this.ambrosia.getAmbrosiaUpgradeEffects(upgradeKey as any, mode),
@@ -591,6 +592,8 @@ export class HSGameDataAPI extends HSGameDataAPIPartial {
             getOcteractUpgradeEffect: (upgradeKey, effectKey) => octeract.getOcteractUpgradeEffect(upgradeKey as any, effectKey),
             getPurpleReactorUpgradeEffects: (upgradeKey, effectKey) => purple.getPurpleReactorUpgradeEffects(upgradeKey as any, effectKey),
             getPurpleAmbrosiaUpgradeEffects: (upgradeKey, effectKey) => purple.getPurpleAmbrosiaUpgradeEffects(upgradeKey as any, effectKey),
+            getPurpleHoneyLuck: () => purple.calculatePurpleHoneyLuck(),
+            getPurpleHoneyPerExtraction: () => purple.calculatePurpleHoneyPerExtraction(),
             getPCoinUpgradeLevel: (upgradeName: string) => this.getPCoinUpgradeLevel(upgradeName as any),
             getCampaignTokens: () => this.campaignData?.tokens ?? 0,
             getEventBellAmount: () => this.eventData?.HAPPY_HOUR_BELL.amount ?? 0,
@@ -605,6 +608,11 @@ export class HSGameDataAPI extends HSGameDataAPIPartial {
         purple = this.registerCalculationHelper(new PurpleHelper({
             getGameData: () => this.gameData,
             calculateBlueberryInventory: () => ambrosia.calculateBlueberryInventory(true) as number,
+            calculateSynergismLevel: () => this.calculateSynergismLevel(),
+            getPCoinUpgradeLevel: (upgradeKey) => this.getPCoinUpgradeLevel(upgradeKey as any),
+            getSingularityChallengeEffect: (challengeKey, effectKey) => this.getSingularityChallengeEffect(challengeKey as any, effectKey as any),
+            getRuneEffects: (runeKey) => rune.getRuneEffects(runeKey as any),
+            getTalismanEffects: (talismanKey) => talisman.getTalismanEffects(talismanKey as any),
             getOcteractUpgradeEffect: (upgradeKey, effectKey) => octeract.getOcteractUpgradeEffect(upgradeKey as any, effectKey),
         }));
         this.purple = purple;

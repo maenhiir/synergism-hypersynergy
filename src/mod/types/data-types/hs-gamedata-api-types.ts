@@ -74,6 +74,7 @@ export interface AmbrosiaHelperContext {
   getGameData: () => GameData | undefined
   getMeData: () => any
   calculateLuck: (reduce_vals?: boolean, true_base?: boolean) => { luckBase: number; luckMult: number; luckTotal: number } | any
+  calculateRedAmbrosiaLuck: () => number
   getShopUpgradeEffects: (upgradeKey: string, effectKey: string, mode?: CalculationMode) => number | boolean
   getSingularityChallengeEffect: (challengeKey: string, effectKey: string) => number
   getAmbrosiaUpgradeEffects: (upgradeKey: string, mode?: CalculationMode) => any
@@ -82,6 +83,8 @@ export interface AmbrosiaHelperContext {
   getOcteractUpgradeEffect: (upgradeKey: string, effectKey?: string) => number
   getPurpleReactorUpgradeEffects: (upgradeKey: string, effectKey: string) => number
   getPurpleAmbrosiaUpgradeEffects: (upgradeKey: string, effectKey: string) => number
+  getPurpleHoneyLuck: () => number
+  getPurpleHoneyPerExtraction: () => number
   getPCoinUpgradeLevel: (upgradeName: string) => number
   getCampaignTokens: () => number
   getEventBellAmount: () => number

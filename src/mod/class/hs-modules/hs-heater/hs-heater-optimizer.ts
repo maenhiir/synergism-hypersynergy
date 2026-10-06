@@ -1,7 +1,7 @@
 import type { HeaterOptimizerInput, HeaterOptimizationResult, HeaterRedAmbUpgradeEffects, HeaterResultRow, HeaterResultRowMatrix, } from "../../../types/data-types/hs-heater-types";
 import { formatNumber } from "./hs-heater-utils";
 import { HEATER_BRANCH_DEFINITIONS } from "./hs-heater-result-config";
-import { calculateHeaterBarIncome } from './hs-heater-bar-income';
+import { calculateAmbrosiaBarIncome } from '../../hs-core/gds/hs-ambrosia-bar-income';
 
 // Keep the optimizer bundle independent from DOM/UI modules so it can run in
 // a Web Worker. Diagnostics still reach the browser console; the worker also
@@ -1509,7 +1509,7 @@ class Loadout {
                 : stats.amb >= 10_000
                   ? Math.ceil(stats.blueBarRequirementBeforeRounding / brickFactor)
                   : stats.blueBarRequirementBeforeRounding / brickFactor
-              const income = calculateHeaterBarIncome({
+              const income = calculateAmbrosiaBarIncome({
                 reactor: stats.reactor,
                 bluePointsPerSecond: stats.ambSpeed * this.getStat('speed'),
                 redPointsPerSecond: stats.redBarPointsPerSecond * this.getStat('rSpeed'),
@@ -1517,6 +1517,8 @@ class Loadout {
                 redRequirementWithoutTwoMind: stats.redBarMaxWithoutTwoMind,
                 blueLuck: this.luck,
                 redLuck: this.getStat('rLuck'),
+                purpleHoneyLuck: 0,           // Not used here
+                purpleHoneyPerExtraction: 0,  // Not used here
                 flatAmbrosiaPerBlueFill: stats.bonusAmbrosiaPerFill,
                 acceleratorSecondsPerRedAmbrosia: stats.acceleratorSecondsPerRedAmbrosia,
                 twoMind: this.twoMindEnabled,

@@ -49,23 +49,23 @@ const HEATER_RESULT_SECTION_CONFIG: Record<HeaterResultSectionId, HeaterResultSe
 };
 
 const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
+    allAmb: {
+        label: "All Ambrosia",
+        description: "General Ambrosia generation.",
+        section: "common",
+        icon: "Pictures/Default/BlueberryFreeGenerationLevels.png",
+    },
     luck: {
         label: "Blue Luck",
-        description: "",
+        description: "Blue Ambrosia generation focus.",
         section: "common",
         icon: "Pictures/Default/BlueberryLuck2.png",
     },
     rLuck: {
         label: "Red Luck",
-        description: "",
+        description: "Red Ambrosia generation focus.",
         section: "common",
         icon: "Pictures/Default/BlueberryFreeRedLuckUpgrades.png",
-    },
-    allAmb: {
-        label: "All Ambrosia",
-        description: "",
-        section: "common",
-        icon: "Pictures/Default/BlueberryFreeGenerationLevels.png",
     },
     quarks: {
         label: "Quarks",
@@ -106,13 +106,13 @@ const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
     },
     sr1: {
         label: "Max SR1",
-        description: "(Pre-AOAG only) Max SR1 first, then optimize for cube.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
+        description: "(Pre-AOAG only) Max SR1 first, then optimize for cubes.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
         section: "p4x4",
         icon: "Pictures/Default/BlueberrySingReduction.png",
     },
     sr2: {
         label: "Max SR2",
-        description: "(Pre-AOAG only) Max SR2 first, then optimize for cube.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
+        description: "(Pre-AOAG only) Max SR2 first, then optimize for cubes.\nThis does not make it the best pre-aoag loadout. Check the H loadouts above and the p4x4eq tooltip.",
         section: "p4x4",
         icon: "Pictures/Default/BlueberrySingReduction2.png",
     },

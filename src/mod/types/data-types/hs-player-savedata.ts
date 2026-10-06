@@ -851,6 +851,8 @@ export interface SingularityChallengeRewards {
         talismanUnlock: boolean;
         talismanFreeLevel: number;
         talismanRuneEffect: number;
+        purpleHoneyLuck: number;
+        purpleBarSize: number;
         antiquityOOM: number;
         horseShoeOOM: number;
     };

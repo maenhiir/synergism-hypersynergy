@@ -1448,12 +1448,12 @@ export const SINGULARITY_CHALLENGE_DATA: {
     }
   },
   taxmanLastStand: {
-    baseReq: 240,
+    baseReq: 266,
     maxCompletions: 10,
     unlockSingularity: 281,
     HTMLTag: 'taxmanLastStand',
     singularityRequirement: (baseReq: number, completions: number) => {
-      return baseReq + 4 * completions
+      return baseReq + 2 * completions
     },
     achievementPointValue: (n: number) => {
       return 50 * n
@@ -1467,6 +1467,8 @@ export const SINGULARITY_CHALLENGE_DATA: {
         talismanUnlock: n >= 10,
         talismanFreeLevel: 25 * n,
         talismanRuneEffect: 0.03 * n,
+        purpleHoneyLuck: 3 * n,
+        purpleBarSize: 1 - 0.01 * n,
         antiquityOOM: 1 / 50 * n / 10,
         horseShoeOOM: 1 / 20 * n / 10
       }

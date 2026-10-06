@@ -1,5 +1,6 @@
 import type Decimal from "break_infinity.js";
 import type { HeaterBranchId, HeaterResultArrayKey } from "../../class/hs-modules/hs-heater/hs-heater-result-config";
+import type { AmbrosiaBarIncomeReactor } from "./hs-ambrosia-income-types";
 export type { HeaterResultArrayKey } from "../../class/hs-modules/hs-heater/hs-heater-result-config";
 
 export interface HeaterOptimizerInput {
@@ -77,22 +78,7 @@ export interface HeaterOptimizerInput {
     blueBarRequirementBeforeRounding: number;
     redBarMaxWithoutTwoMind: number;
     /** Fixed game-state inputs for the new bar-fill income objectives. */
-    reactor?: {
-        blueRoutingPercent: number;
-        redRoutingPercent: number;
-        blueStoredPoints: number;
-        redStoredPoints: number;
-        blueCapacity: number;
-        encabulatorSpeed: number;
-        purpleRequirementWithoutTwoMind: number;
-        cancerPurplePointsPerBlueOrRedFill: number;
-        purpleFillBluePoints: number;
-        purpleFillRedPoints: number;
-        scorpioConversionMultiplier: number;
-        ariesBarPointMultiplier: number;
-        overcapEnabled: boolean;
-        barDependenceEnabled: boolean;
-    };
+    reactor?: AmbrosiaBarIncomeReactor;
     ambrosiaUpgradeBonusLevels: Record<string, number>;
     ambrosiaUpgradeBlueberryCostReductions: Record<string, number>;
     shopUpgradeRawLevels: Record<string, number>;
