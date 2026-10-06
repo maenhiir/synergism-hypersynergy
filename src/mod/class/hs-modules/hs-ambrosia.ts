@@ -1025,7 +1025,6 @@ export class HSAmbrosia extends HSModule
                 const gameData = forceRefresh
                     ? await gameDataAPI.getForcedGameData()
                     : gameDataAPI.getGameData();
-                if (forceRefresh) this.#clearScheduledBarIncomeRefresh();
                 if (!this.#isAmbrosiaTabActive) return;
                 if (!gameData) {
                     this.#setBarIncomeUnavailable();
@@ -1065,7 +1064,9 @@ export class HSAmbrosia extends HSModule
             }
         };
 
-        const queuedRefresh = this.#barIncomeRefreshQueue.then(refresh, refresh);
+        // Every refresh restarts the 10s cycle, so loadout loads and tab entry reset the cadence.
+        const queuedRefresh = this.#barIncomeRefreshQueue.then(refresh, refresh)
+            .finally(() => this.#scheduleBarIncomeRefresh());
         this.#barIncomeRefreshQueue = queuedRefresh.catch((error) => {
             HSLogger.warn(`Ambrosia income refresh failed: ${error}`, this.context);
         });
@@ -1097,13 +1098,14 @@ export class HSAmbrosia extends HSModule
     }
 
     #scheduleBarIncomeRefresh(): void {
+        this.#clearScheduledBarIncomeRefresh();
         if (!this.#isAmbrosiaTabActive) return;
 
-        this.#clearScheduledBarIncomeRefresh();
         this.#barIncomeRefreshTimer = setTimeout(() => {
             this.#barIncomeRefreshTimer = undefined;
-            void this.#queueBarIncomeRefresh(false);
-        }, 750);
+            const useGameDataSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
+            void this.#queueBarIncomeRefresh(!useGameDataSetting.isEnabled());
+        }, 10_000);
     }
 
     #clearScheduledBarIncomeRefresh(): void {
@@ -1649,10 +1651,6 @@ export class HSAmbrosia extends HSModule
 
         const gameData = gameDataAPI.getGameData();
         if (!gameData) return;
-
-        if (this.#isAmbrosiaTabActive) {
-            this.#scheduleBarIncomeRefresh();
-        }
 
         if (this.#berryMinibarsEnabled) {
             this.#updateBerryMinibars(gameData, gameDataAPI);
