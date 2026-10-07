@@ -1034,7 +1034,21 @@ export class HSHeaterUIResult {
             this.toggleResultInteractionOverlay(target, false);
         };
 
+        const onApplyRoutingClick = (event: Event) => {
+            const button = (event.target as HTMLElement | null)?.closest('.hs-heater-apply-routing-btn') as HTMLElement | null;
+            if (!button || !modal.contains(button)) return;
+
+            const blue = Number(button.dataset.blueRouting);
+            const red = Number(button.dataset.redRouting);
+            if (this.applyPurpleReactorRouting(blue, red)) {
+                HSUI.Notify(`Purple Reactor routing set to Blue ${blue}% / Red ${red}%.`, { position: 'top', notificationType: 'success' });
+            } else {
+                HSUI.Notify('Could not find the Purple Reactor routing sliders.', { position: 'top', notificationType: 'error' });
+            }
+        };
+
         modal.addEventListener('click', onClick);
+        modal.addEventListener('click', onApplyRoutingClick);
         modal.addEventListener('mouseover', onShowOverlay);
         modal.addEventListener('mouseout', onHideOverlay);
         modal.addEventListener('focusin', onShowOverlay);
@@ -1046,6 +1060,7 @@ export class HSHeaterUIResult {
 
         const detach = () => {
             modal.removeEventListener('click', onClick);
+            modal.removeEventListener('click', onApplyRoutingClick);
             modal.removeEventListener('mouseover', onShowOverlay);
             modal.removeEventListener('mouseout', onHideOverlay);
             modal.removeEventListener('focusin', onShowOverlay);
@@ -1080,6 +1095,23 @@ export class HSHeaterUIResult {
         this.clearAllOverlays();
         this.#quickbarCloneCleanup?.();
         this.#quickbarCloneCleanup = null;
+    }
+
+    /**
+     * Sets the game's Purple Reactor routing sliders. SynergismOfficial
+     * (EventListeners.ts registerPurpleReactantSlider) reads a slider's value
+     * on 'input', so dispatching it applies the setting like a player drag.
+     */
+    static applyPurpleReactorRouting(bluePercent: number, redPercent: number): boolean {
+        const blueSlider = document.getElementById('ambrosiaBarPointPercentageSlider') as HTMLInputElement | null;
+        const redSlider = document.getElementById('redAmbrosiaBarPointPercentageSlider') as HTMLInputElement | null;
+        if (!blueSlider || !redSlider || !Number.isFinite(bluePercent) || !Number.isFinite(redPercent)) return false;
+
+        for (const [slider, percent] of [[blueSlider, bluePercent], [redSlider, redPercent]] as const) {
+            slider.value = String(percent);
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        return true;
     }
 
     // === Async/Clipboard/Game Import Methods ===

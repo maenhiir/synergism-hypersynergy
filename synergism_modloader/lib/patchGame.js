@@ -14,9 +14,11 @@ const {
     removeBestEffort
 } = require('./workspaceManager')
 
+const quoteArg = (arg) => (/[\s"]/.test(arg) || arg === '' ? `"${arg.replace(/"/g, '\\"')}"` : arg)
+
 function run(cmd, args, onLog) {
     return new Promise((resolve, reject) => {
-        onLog?.(`$ ${cmd} ${args.join(' ')}`)
+        onLog?.(`$ ${[cmd, ...args].map(quoteArg).join(' ')}`)
         execFile(cmd, args, { maxBuffer: 1024 * 1024 * 64 }, (err, stdout, stderr) => {
             if (stdout) onLog?.(stdout.trim())
             if (stderr) onLog?.(stderr.trim())

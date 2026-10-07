@@ -46,6 +46,12 @@ const HEATER_RESULT_SECTION_CONFIG: Record<HeaterResultSectionId, HeaterResultSe
         effectHeader: "Oct Effect",
         order: 3,
     },
+    purple: {
+        title: "Purple Loadouts",
+        showP4x4: false,
+        effectHeader: "Effect",
+        order: 4,
+    },
 };
 
 const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
@@ -69,7 +75,7 @@ const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
     },
     quarks: {
         label: "Quarks",
-        description: "",
+        description: "QUACK!!",
         section: "common",
         icon: "Pictures/Default/BlueberryQuarks2.png",
     },
@@ -121,6 +127,30 @@ const HEATER_RESULT_TYPE_CONFIG = createHeaterResultTypeConfig({
         description: "Late game loadout, only usable once you can max Ambrosia (which requires several tens of millions of amb).",
         section: "hybrid",
         icon: "Pictures/Default/BlueberryLuck4.png",
+    },
+    purpleHoney: {
+        label: "Purple Honey",
+        description: "Maximizes Purple Honey per second, at your current Purple Reactor routing percentages. Use it when saving Honey for Purple Reactor or Synthesis upgrades.",
+        section: "purple",
+        icon: "Pictures/PurpleAmbrosia/Purple Upgrades/PurpleHoney.png",
+    },
+    purpleAmb: {
+        label: "Purple Ambrosia",
+        description: "Maximizes Purple Ambrosia crafted per second, at your current Purple Reactor routing percentages. Crafting needs both Red Ambrosia and Purple Honey, so this balances the two.",
+        section: "purple",
+        icon: "Pictures/PurpleAmbrosia/PurpleAmbrosia.png",
+    },
+    purpleHoneyOpt: {
+        label: "Purple Honey (best routing)",
+        description: "Same goal as Purple Honey, but the loadout and the Purple Reactor routing are optimized together.\nRouting is not saved in Ambrosia loadouts: applying it also changes the income of your other loadouts.",
+        section: "purple",
+        icon: "Pictures/PurpleAmbrosia/Purple Upgrades/PurpleHoney.png",
+    },
+    purpleAmbOpt: {
+        label: "Purple Ambrosia (best routing)",
+        description: "Same goal as Purple Ambrosia, but the loadout and the Purple Reactor routing are optimized together.\nRouting is not saved in Ambrosia loadouts: applying it also changes the income of your other loadouts.",
+        section: "purple",
+        icon: "Pictures/PurpleAmbrosia/PurpleAmbrosia.png",
     },
 });
 
@@ -182,6 +212,7 @@ export const HEATER_BRANCH_DEFINITIONS = [
     { id: "hyperflux", label: "Hyperflux (p4x4, pre-AoAG)",  resultKeys: ["hyperflux"],               optionKey: "calculateHyperflux" },
     { id: "sr",        label: "Max SR",                      resultKeys: ["sr1", "sr2"],              optionKey: "calculateSR" },
     { id: "ambOct",    label: "Max Amb + Oct",               resultKeys: ["ambOct"],                  optionKey: "calculateAmbOct" },
+    { id: "purple",    label: "Purple (test)",               resultKeys: ["purpleHoney", "purpleAmb", "purpleHoneyOpt", "purpleAmbOpt"], optionKey: "calculatePurple" },
 ] as const;
 
 export type HeaterBranchDefinition = typeof HEATER_BRANCH_DEFINITIONS[number];

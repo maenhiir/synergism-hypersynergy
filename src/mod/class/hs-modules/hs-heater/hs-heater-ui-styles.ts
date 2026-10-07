@@ -607,13 +607,24 @@ export class HSHeaterUIStyles {
 
             /* === Buttons & Interactive === */
             .hs-heater-copy-loadout-btn,
-            .hs-heater-import-loadout-btn {
+            .hs-heater-import-loadout-btn,
+            .hs-heater-apply-routing-btn {
                 height: 20px;
                 min-height: 20px;
                 cursor: pointer;
                 padding: 1px 4px;
                 font-size: 0.85em;
                 border: 2px solid transparent;
+            }
+
+            .hs-heater-purple-routing {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                font-size: 0.85em;
+                white-space: nowrap;
+                cursor: help;
             }
 
             .hs-heater-json-tooltip-trigger {

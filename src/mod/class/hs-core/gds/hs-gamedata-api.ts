@@ -1745,6 +1745,31 @@ export class HSGameDataAPI extends HSGameDataAPIPartial {
         return totalAP;
     }
 
+    /**
+     * Mirrors getSynthesisRedAmbrosiaCost / getSynthesisPurpleHoneyCost in
+     * SynergismOfficial/src/Synthesis.ts: the Red Ambrosia and Purple Honey
+     * spent to craft one Purple Ambrosia.
+     */
+    calculatePurpleAmbrosiaCraftCosts(): { craftRedAmbrosiaCost: number; craftPurpleHoneyCost: number } {
+        const synthesis = (this.gameData as unknown as { synthesisUpgrades?: Record<string, Record<string, number>> } | undefined)?.synthesisUpgrades;
+        // A synthesis level is the highest level whose linear cumulative cost
+        // fits every invested resource.
+        const level = (key: string, maxLevel: number, costPerLevel: Record<string, number>): number => {
+            const affordable = Object.entries(costPerLevel).map(([resource, cost]) =>
+                Math.floor(Number(synthesis?.[key]?.[resource] ?? 0) / cost));
+            return Math.min(maxLevel, Math.max(0, Math.min(...affordable)));
+        };
+        const redReduction = level('redAmbrosiaReduction', 500, { purpleAmbrosia: 1, redAmbrosia: 1_250 });
+        const honeyReduction = level('purpleHoneyReduction', 100, { purpleAmbrosia: 5, purpleHoney: 2_500 });
+        const discount = Number(this.talisman.getTalismanEffects('purpleGem').purpleAmbrosiaDiscount ?? 1)
+            * Number(this.getSingularityChallengeEffect('barDependence', 'purpleAmbrosiaCostReduction') ?? 1);
+
+        return {
+            craftRedAmbrosiaCost: (2_500 - redReduction) * discount,
+            craftPurpleHoneyCost: (500 - honeyReduction) * discount,
+        };
+    }
+
     calculateSynergismLevel() {
         if (!this.gameData) return 0;
         const data = this.gameData;
@@ -2954,6 +2979,13 @@ export class HSGameDataAPI extends HSGameDataAPIPartial {
                         overcapEnabled: Boolean(gameData.encabulatorOvercapToggle
                             && this.purple.getPurpleAmbrosiaUpgradeEffects('libra', 'overcapToggleUnlocked')),
                         barDependenceEnabled: Boolean(gameData.singularityChallenges.barDependence.enabled),
+                    },
+                    // Purple Honey luck and per-extraction values do not depend on
+                    // purchased Ambrosia levels; the bar-income model applies Two Mind.
+                    heaterPurple: {
+                        purpleHoneyLuck: this.purple.calculatePurpleHoneyLuck(),
+                        purpleHoneyPerExtraction: this.purple.calculatePurpleHoneyPerExtraction(),
+                        ...this.calculatePurpleAmbrosiaCraftCosts(),
                     },
                     ambrosiaUpgradeBonusLevels,
                     ambrosiaUpgradeBlueberryCostReductions,

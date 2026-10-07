@@ -443,7 +443,7 @@ export const redAmbrosiaUpgradeCalculationCollection: RedAmbrosiaUpgradeCalculat
   },
   // Row 2
   freeLevelsRow2: {
-    label: 'Row 2 Upgrade Levels',
+    label: 'More Blueberry Luck Module Levels!',
     costPerLevel: 10,
     maxLevel: 5,
     costFunction: (n: number, cpl: number) => cpl * Math.pow(2, n),
@@ -504,7 +504,7 @@ export const redAmbrosiaUpgradeCalculationCollection: RedAmbrosiaUpgradeCalculat
   },
   // Row 3
   freeLevelsRow3: {
-    label: 'Row 3 Upgrade Levels',
+    label: 'More Blueberry Resource and Utility Module Levels!',
     costPerLevel: 250,
     maxLevel: 5,
     costFunction: (n: number, cpl: number) => cpl * Math.pow(2, n),
@@ -588,7 +588,7 @@ export const redAmbrosiaUpgradeCalculationCollection: RedAmbrosiaUpgradeCalculat
   },
   // Row 4
   freeLevelsRow4: {
-    label: 'Row 4 Upgrade Levels',
+    label: 'More Blueberry Cube Module Levels!',
     costPerLevel: 5000,
     maxLevel: 5,
     costFunction: (n: number, cpl: number) => cpl * Math.pow(2, n),
@@ -664,7 +664,7 @@ export const redAmbrosiaUpgradeCalculationCollection: RedAmbrosiaUpgradeCalculat
     url: 'Pictures/RedAmbrosia/RedAmbrosiaTutorial.png'
   },
   freeLevelsRow5: {
-    label: 'Row 5 Upgrade Levels',
+    label: 'More Blueberry Quark Module Levels!',
     costPerLevel: 50000,
     maxLevel: 5,
     costFunction: (n: number, cpl: number) => cpl * Math.pow(2, n),

@@ -1,5 +1,5 @@
 import { buildHeaterTypeSemanticId, getHeaterTypeBranchId, getHeaterTypeConfig, getHeaterTypeRowCount, resolveHeaterTypeLabel } from "./hs-heater-result-config";
-import type { HeaterOptimizationResult, HeaterResultArrayKey, NormalizedHeaterResultEntry } from "../../../types/data-types/hs-heater-types";
+import type { HeaterOptimizationResult, HeaterPurpleRoutedResultKey, HeaterResultArrayKey, NormalizedHeaterResultEntry } from "../../../types/data-types/hs-heater-types";
 import type { HeaterBranchId } from "./hs-heater-result-config";
 
 export type { NormalizedHeaterResultEntry } from "../../../types/data-types/hs-heater-types";
@@ -55,6 +55,7 @@ export function normalizeHeaterOptimizationResult(
                 key,
                 rowIndex: 0,
                 isRowBased: false,
+                purpleRouting: result.purpleRouting?.[key as HeaterPurpleRoutedResultKey],
             });
         }
     }

@@ -4,6 +4,7 @@ import { HSElementHooker } from "../../hs-core/hs-elementhooker";
 import { HSGameDataAPI } from "../../hs-core/gds/hs-gamedata-api";
 import { HSQOLQuickbarBase } from "./hs-qolQuickbarBase";
 import { HSIcons } from "../../hs-utils/hs-icons";
+import { GameData } from "../../../types/data-types/hs-player-savedata";
 
 type AutomationSelectorExpectation = 'ON' | 'OFF' | string;
 type AutomationSelectorSpec = string | { selector: string; expected?: AutomationSelectorExpectation };
@@ -23,6 +24,8 @@ type AutomationQuickbarSoloConfig = {
     kind: 'solo';
     actionDOM: string;
     checks: readonly AutomationSelectorSpec[];
+    // Used while the game has not rendered the toggle text yet (e.g. auto-challenge button if challenge tab never opened).
+    gameDataFallback?: (gameData: GameData) => boolean;
     selectorVisibility?: AutomationSelectorVisibilityMode;
     hideWhenFullyEnabledMinHighestSingularityCount?: number;
     buttonId: string;
@@ -164,6 +167,7 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
             kind: 'solo',
             actionDOM: '#toggleAutoChallengeStart',
             checks: [{ selector: '#toggleAutoChallengeStart', expected: 'Auto Challenge Sweep [ON]' }],
+            gameDataFallback: (gameData: GameData) => !!gameData.autoChallengeRunning,
             buttonId: 'automationQuickBar-autochallenge',
             label: 'Auto-Challenge',
             iconSrc: './Pictures/Simplified/Challenge.png',
@@ -534,6 +538,7 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
                     spec,
                     matcher: this.#getCompiledAutomationSelectorMatcher(spec)
                 }));
+                const gameDataFallback = (config as AutomationQuickbarSoloConfig).gameDataFallback;
 
                 const btn = document.createElement('button');
                 btn.className = 'autoToggle';
@@ -579,6 +584,10 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
                     const checkStates = compiledChecks.map(({ matcher }, idx) => {
                         const el = visibleCheckTargets[idx];
                         if (!el) return null;
+                        if (gameDataFallback && !(el.textContent ?? '').trim()) {
+                            const gameData = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.getGameData();
+                            if (gameData) return gameDataFallback(gameData);
+                        }
                         return matcher(el);
                     }).filter((state): state is boolean => state !== null);
 
@@ -643,6 +652,20 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         }
 
         this.#finalizeAutomationQuickbarSetup(updateAutomationUIState, requestAutomationUpdateUI);
+        this.#primeGameDataForFallbacks(requestAutomationUpdateUI);
+    }
+
+    /** The quickbar can be built before GDS captured its first snapshot; fetch one so fallbacks have data. */
+    #primeGameDataForFallbacks(requestUpdateUI: () => void): void {
+        const configs = Object.values(HSQOLAutomationQuickbar.AUTOMATION_QUICKBAR_CONFIG) as readonly AutomationQuickbarToggleConfig[];
+        if (!configs.some(c => c.kind === 'solo' && c.gameDataFallback)) return;
+
+        const gameDataAPI = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI');
+        if (!gameDataAPI || gameDataAPI.getGameData()) return;
+
+        gameDataAPI.getForcedGameData()
+            .then(() => requestUpdateUI())
+            .catch(e => HSLogger.log(`Could not prime game data for automation quickbar: ${e}`, this.context));
     }
 
     /** Stop and clear all element watchers registered for the automation quickbar. */

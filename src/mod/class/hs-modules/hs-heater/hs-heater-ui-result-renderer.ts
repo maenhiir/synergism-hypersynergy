@@ -1,4 +1,4 @@
-import { escapeHtml } from "./hs-heater-utils";
+import { escapeHtml, formatNumber } from "./hs-heater-utils";
 import { getEffectiveHeaterIconSrc } from "./hs-heater-icon-store";
 import { getHeaterResultSectionDefinitions, getHeaterTypeConfig, resolveHeaterTypeDescription, type HeaterResultSectionDef } from "./hs-heater-result-config";
 import type { NormalizedHeaterResultEntry } from "./hs-heater-result-store";
@@ -102,6 +102,33 @@ function buildLoadoutActionControls(escapedFullLoadout: string, escapedLoadoutLa
     return `${copyButton}${importButton}`;
 }
 
+// Purple rows show the Purple Reactor routing they assume. Best-routing rows
+// also compare with the current routing and offer to apply theirs.
+function buildPurpleRoutingHtml(entry: NormalizedHeaterResultEntry): string {
+    const routing = entry.purpleRouting;
+    if (!routing) return "";
+
+    const blue = routing.blueRoutingPercent;
+    const red = routing.redRoutingPercent;
+    const unit = entry.key === "purpleHoney" || entry.key === "purpleHoneyOpt" ? "Purple Honey" : "Purple Ambrosia";
+    const current = routing.currentRoutingPerHour;
+    const tooltipLines = current === undefined
+        ? [`Your current routing: Blue ${blue}% / Red ${red}%`, `≈ ${formatNumber(routing.perHour)} ${unit} / hour`]
+        : [
+            `Recommended routing: Blue ${blue}% / Red ${red}%`,
+            `≈ ${formatNumber(routing.perHour)} ${unit} / hour`,
+            `vs ${formatNumber(current)} / hour at your current routing`
+                + (current > 0 ? ` (+${formatNumber((routing.perHour / current - 1) * 100)}%)` : ""),
+            "Routing is global: it also changes your other loadouts' income.",
+        ];
+    const applyButton = current === undefined
+        ? ""
+        : `<button class="hs-heater-apply-routing-btn" type="button" data-blue-routing="${blue}" data-red-routing="${red}">Apply</button>`;
+
+    return `<div class="hs-heater-purple-routing" title="${escapeHtml(tooltipLines.join("\n"))}">`
+        + `<span>Blue ${blue}% / Red ${red}%</span>${applyButton}</div>`;
+}
+
 function buildArraySectionDataRow(
     entry: NormalizedHeaterResultEntry,
     showP4x4: boolean,
@@ -129,9 +156,10 @@ function buildArraySectionDataRow(
             : "";
     const blueberryCostCell = `<td>${formatCostCellValue(rowModel.blueberryCostValue)}</td>`;
     const costCell = `<td>${formatCostCellValue(rowModel.costValue)}</td>`;
+    const effectHtml = escapeHtml(String(rowModel.effectValue)) + buildPurpleRoutingHtml(entry);
     const effectCell = showP4x4
-        ? `<td>${escapeHtml(String(rowModel.effectValue))}</td>`
-        : `<td colspan="2">${escapeHtml(String(rowModel.effectValue))}</td>`;
+        ? `<td>${effectHtml}</td>`
+        : `<td colspan="2">${effectHtml}</td>`;
     const p4x4Cell = showP4x4 ? `<td>${escapeHtml(String(rowModel.p4x4Value))}</td>` : "";
     const maxCell = `<td>${rowModel.maxedValue === true ? '<span class="hs-heater-status-maxed">✔</span>' : rowModel.maxedValue === false ? '<span class="hs-heater-status-unmaxed">✘</span>' : escapeHtml(String(rowModel.maxedValue))}</td>`;
     return `<tr>${resultCell}${loadoutCell}${blueberryCostCell}${costCell}${effectCell}${p4x4Cell}${maxCell}</tr>`;

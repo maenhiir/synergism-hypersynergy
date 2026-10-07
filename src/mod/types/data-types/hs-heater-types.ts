@@ -79,6 +79,8 @@ export interface HeaterOptimizerInput {
     redBarMaxWithoutTwoMind: number;
     /** Fixed game-state inputs for the new bar-fill income objectives. */
     reactor?: AmbrosiaBarIncomeReactor;
+    /** Fixed game-state inputs for the Purple Honey / Purple Ambrosia objectives. */
+    purple?: HeaterPurpleInput;
     ambrosiaUpgradeBonusLevels: Record<string, number>;
     ambrosiaUpgradeBlueberryCostReductions: Record<string, number>;
     shopUpgradeRawLevels: Record<string, number>;
@@ -96,6 +98,27 @@ export interface HeaterOptimizerInput {
     panthemaLevel: number;
     shopUpgradesDisabled: boolean;
     heaterOptions: Record<HeaterBranchId, boolean>;
+}
+
+export interface HeaterPurpleInput {
+    purpleHoneyLuck: number;
+    purpleHoneyPerExtraction: number;
+    /** Red Ambrosia spent per crafted Purple Ambrosia. */
+    craftRedAmbrosiaCost: number;
+    /** Purple Honey spent per crafted Purple Ambrosia. */
+    craftPurpleHoneyCost: number;
+}
+
+export type HeaterPurpleRoutedResultKey = 'purpleHoney' | 'purpleAmb' | 'purpleHoneyOpt' | 'purpleAmbOpt';
+
+/** Purple Reactor routing used by a purple result row. */
+export interface HeaterPurpleRouting {
+    blueRoutingPercent: number;
+    redRoutingPercent: number;
+    /** Row objective per hour: Purple Honey, or crafted Purple Ambrosia. */
+    perHour: number;
+    /** Best-routing rows only: the same objective per hour at the current routing. */
+    currentRoutingPerHour?: number;
 }
 
 export type HeaterResultAffordableRow = [
@@ -140,7 +163,7 @@ export type HeaterResultSheetRowMatrix = HeaterResultSheetRow[];
 export type RowBasedResultKey = import("../../class/hs-modules/hs-heater/hs-heater-result-config").RowBasedResultKey;
 export type SingleResultKey = Exclude<HeaterResultArrayKey, RowBasedResultKey>;
 export type HeaterTypeSemanticId = 'none' | SingleResultKey | `${RowBasedResultKey}:${number}`;
-export type HeaterResultSectionId = 'common' | 'obtOff' | 'p4x4' | 'hybrid';
+export type HeaterResultSectionId = 'common' | 'obtOff' | 'p4x4' | 'hybrid' | 'purple';
 
 export type HeaterRedAmbUpgradeEffectName =
     | 'ossifiedTactics'
@@ -175,6 +198,7 @@ export type NormalizedHeaterResultEntry = {
     section: HeaterResultSectionId;
     rowIndex: number;
     isRowBased: boolean;
+    purpleRouting?: HeaterPurpleRouting;
 };
 
 export interface HeaterOptimizationResult {
@@ -192,6 +216,11 @@ export interface HeaterOptimizationResult {
     sr1?: HeaterResultRowMatrix;
     sr2?: HeaterResultRowMatrix;
     ambOct?: HeaterResultRowMatrix;
+    purpleHoney?: HeaterResultRowMatrix;
+    purpleAmb?: HeaterResultRowMatrix;
+    purpleHoneyOpt?: HeaterResultRowMatrix;
+    purpleAmbOpt?: HeaterResultRowMatrix;
+    purpleRouting?: Partial<Record<HeaterPurpleRoutedResultKey, HeaterPurpleRouting>>;
     redAmbUpgradeEffects?: HeaterRedAmbUpgradeEffects;
     redAmbCommonValues?: HeaterRedAmbCommonValues;
 }

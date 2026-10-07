@@ -27,10 +27,11 @@ const BRANCH_GROUPS: readonly (readonly HeaterBranchId[])[] = [
   // Groups run sequentially in disposable workers. Cube/SR reuse their
   // Cube/Voucher and Luck-Cube frontiers; Quarks/Obt/Off reuse their Luck,
   // Rune and Voucher inputs but keep separate objective-specific frontiers.
+  // Purple reuses the Luck branch's luck and voucher tables.
   ['hyperflux'],
   ['cubes', 'sr'],
   ['oct'],
-  ['luck', 'ambOct'],
+  ['luck', 'ambOct', 'purple'],
   ['quarks', 'obtOff'],
 ]
 
