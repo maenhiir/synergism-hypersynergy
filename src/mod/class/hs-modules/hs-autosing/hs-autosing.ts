@@ -1295,6 +1295,16 @@ export class HSAutosing extends HSModule {
     // STAGE
     // ============================================================================
 
+    static #stageLabelPrefix?: Promise<string | undefined>;
+
+    /** The translated "Current Game Section:" part of the stage statistic (text before {{stage}}), loaded once. */
+    static #getStageLabelPrefix(): Promise<string | undefined> {
+        const placeholder = '@@HS_STAGE@@';
+        HSAutosing.#stageLabelPrefix ??= HSUtils.getGameTranslation('statistics.gameStage', { stage: placeholder })
+            .then(text => text?.split(placeholder)[0].trim() || undefined);
+        return HSAutosing.#stageLabelPrefix;
+    }
+
     async #getStage(): Promise<string> {
         if (!this.#autosingEnabled) return '';
         if (this.#isExposureReady) {
@@ -1315,10 +1325,18 @@ export class HSAutosing extends HSModule {
             }
             this.#isReadingDOMStage = true;
             try {
+                // The label is translated ("Current Game Section: {{stage}}"): use the player's language,
+                // English kept as fallback. The stage value itself is an internal, untranslated id.
+                const stagePrefix = await HSAutosing.#getStageLabelPrefix();
+                const extractStage = (text: string): string | null => {
+                    if (stagePrefix && text.includes(stagePrefix)) return text.slice(text.indexOf(stagePrefix) + stagePrefix.length).trim();
+                    return text.match(STAGE_REGEX)?.[1] ?? null;
+                };
+
                 // Arm the observer before navigation: a fresh render may happen
                 // immediately, or on a later UI tick. Existing text is not evidence
                 // that the game has updated the stage for this read.
-                const stageUpdate = this.#waitForInnerText(this.#stage, t => t.includes("Current Game Section:"), true);
+                const stageUpdate = this.#waitForInnerText(this.#stage, t => extractStage(t) !== null, true);
                 const isOnStageTab =
                     this.#settingsTab.classList.contains('active-tab') &&
                     this.#settingsSubTab.classList.contains('active-subtab') &&
@@ -1335,9 +1353,7 @@ export class HSAutosing extends HSModule {
                 }
 
                 await stageUpdate;
-                const stageTextRaw = this.#stage?.textContent ?? "";
-                const stageMatch = stageTextRaw.match(STAGE_REGEX);
-                const stageText = stageMatch ? stageMatch[1] : null;
+                const stageText = extractStage(this.#stage?.textContent ?? "");
 
                 HSLogger.warn(`Current stage: ${stageText}`, this.context);
                 return stageText || '';

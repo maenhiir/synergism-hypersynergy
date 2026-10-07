@@ -221,7 +221,8 @@ export class HSGameData extends HSModule {
     #refreshCampaignTokens() {
         this.#campaignTokenElement ||= document.querySelector('#campaignTokenCount') as HTMLHeadingElement;
         const text = this.#campaignTokenElement?.textContent ?? '';
-        const match = text.match(/^You have\s+(\d+)\s+\/\s+(\d+)\s+/);
+        // The text is translated ("You have 3 / 4 tokens!", "У вас 3 / 4 жетонов!"...): match only the numbers
+        const match = text.match(/(\d+)\s*\/\s*(\d+)/);
         if (!match) return;
 
         const tokens = Number.parseInt(match[1], 10);

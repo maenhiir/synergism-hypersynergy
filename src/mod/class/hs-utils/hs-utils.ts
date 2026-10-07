@@ -313,17 +313,20 @@ export class HSUtils {
      * Get a game UI string (e.g. 'ambrosia.importTree.success') in the player's language.
      * Uses the game's i18next when the patcher exposed it, else the game's translation files,
      * with English as fallback like the game. Returns undefined if the key can't be resolved.
+     * Optional `vars` fill the {{placeholders}}, like i18next.t(key, vars).
      */
-    static async getGameTranslation(key: string): Promise<string | undefined> {
+    static async getGameTranslation(key: string, vars?: Record<string, string | number>): Promise<string | undefined> {
         const i18n = (window as any).__HS_i18next;
         if (typeof i18n?.t === 'function') {
-            const text = i18n.t(key);
+            const text = i18n.t(key, vars);
             if (typeof text === 'string' && text !== key) return text;
         }
 
         const resolve = (file: Record<string, unknown> | undefined): string | undefined => {
             const value = key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], file);
-            return typeof value === 'string' && value.length > 0 ? value : undefined;
+            if (typeof value !== 'string' || value.length === 0) return undefined;
+            if (!vars) return value;
+            return value.replace(/\{\{\s*(\w+)\s*\}\}/g, (match, name: string) => name in vars ? String(vars[name]) : match);
         };
 
         const lang = localStorage.getItem('language') || 'en';

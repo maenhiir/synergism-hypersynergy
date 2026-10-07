@@ -470,7 +470,16 @@ export class HSQOLButtons extends HSModule {
         statusLabel.style.minHeight = '16px';
         statusLabel.style.textAlign = 'center';
 
-        const setStatus = (text: string) => { statusLabel.textContent = text; };
+        // Any new status cancels a pending auto-clear, so an older timer can't wipe a newer message
+        let statusClearTimer: ReturnType<typeof setTimeout> | undefined;
+        const setStatus = (text: string, clearAfterMs?: number) => {
+            clearTimeout(statusClearTimer);
+            statusClearTimer = undefined;
+            statusLabel.textContent = text;
+            if (clearAfterMs !== undefined) {
+                statusClearTimer = setTimeout(() => { statusLabel.textContent = ''; }, clearAfterMs);
+            }
+        };
 
         const matchRatios = document.createElement('button');
         matchRatios.id = 'hs-gq-match-invested-ratios';
@@ -574,7 +583,8 @@ export class HSQOLButtons extends HSModule {
                     else resolve();
                 };
                 observer.observe(confirmationBox!, { attributes: true, subtree: true, attributeFilter: ['style'] });
-                const timer = setTimeout(() => finish(new Error('Purchase dialog did not open.')), 5000);
+                // Short: the game opens it synchronously on click, and unbuyable upgrades are filtered out beforehand
+                const timer = setTimeout(() => finish(new Error('Purchase dialog did not open.')), 2000);
             });
 
         distributeBtn.addEventListener('click', async () => {
@@ -605,8 +615,32 @@ export class HSQOLButtons extends HSModule {
                     if (Number.isFinite(val) && val > 0) ratios[id] = val;
                 }
 
-                const ids = Object.keys(ratios);
-                if (ids.length === 0) return;
+                // Drop the upgrades the game would refuse with an alert instead of the purchase dialog:
+                // maxed since the list was built (e.g. a previous distribution), or next level costing
+                // more than the whole balance. With auto-confirm on (autosing), that alert never shows.
+                // Their share goes to the other upgrades.
+                const gqHelper = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.goldenQuark;
+                const skipped: string[] = [];
+                const ids = Object.keys(ratios).filter((id) => {
+                    if (!gqHelper) return true;
+                    const key = id as GoldenQuarkUpgradeKey;
+                    const level = gqHelper.getGQUpgradeLevel(key);
+                    if (level >= gqHelper.computeGQUpgradeMaxLevel(key)) {
+                        skipped.push(`${id} (maxed)`);
+                        return false;
+                    }
+                    const nextLevelCost = gqHelper.getGQUpgradeCumulativeCost(key, level + 1)
+                        - gqHelper.getGQUpgradeCumulativeCost(key, level);
+                    if (nextLevelCost > totalGQ) {
+                        skipped.push(`${id} (not enough GQ)`);
+                        return false;
+                    }
+                    return true;
+                });
+                if (ids.length === 0) {
+                    if (skipped.length > 0) setStatus(`Nothing to buy. Skipped: ${skipped.join(', ')}`);
+                    return;
+                }
                 const gqBudget = Math.max(0, Math.floor(totalGQ));
                 const weightEntries = ids.map((id) => {
                     const weight = ratios[id] ?? 0;
@@ -705,7 +739,14 @@ export class HSQOLButtons extends HSModule {
                     if (!btn) continue;
 
                     btn.dispatchEvent(new MouseEvent('click', { shiftKey: true, bubbles: true }));
-                    await waitForPurchaseDialog();
+                    try {
+                        await waitForPurchaseDialog();
+                    } catch {
+                        // Safety net: skip this upgrade instead of stopping the whole distribution
+                        // (e.g. a game alert resolved silently by auto-confirm during autosing)
+                        HSLogger.warn(`GQ distribution: no purchase dialog for ${id}, skipped`, this.context);
+                        skipped.push(`${id} (no dialog)`);
+                    }
 
                     if (purchaseWrapper.style.display === 'block') {
                         // Let the game calculate affordable levels and enforce upgrade caps.
@@ -713,6 +754,7 @@ export class HSQOLButtons extends HSModule {
                         costInput.dispatchEvent(new Event('input', { bubbles: true }));
                         if (okPurchase.disabled) {
                             cancelPurchase.click();
+                            skipped.push(`${id} (allocation cannot buy a level)`);
                             setStatus(`Skipped ${current}/${ids.length} (allocation cannot buy a level)`);
                         } else {
                             okPurchase.click();
@@ -732,8 +774,11 @@ export class HSQOLButtons extends HSModule {
                     btn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
                     btn.blur();
                 }
-                setStatus('Done!');
-                setTimeout(() => setStatus(''), 3000);
+                if (skipped.length > 0) {
+                    setStatus(`Done. Skipped: ${skipped.join(', ')}`, 60000);
+                } else {
+                    setStatus('Done!', 3000);
+                }
             } catch (error) {
                 HSLogger.warn(`GQ distribution failed: ${error}`, this.context);
                 setStatus(`Distribution stopped: ${error instanceof Error ? error.message : 'purchase failed.'}`);

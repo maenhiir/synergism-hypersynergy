@@ -4,10 +4,20 @@ import { HSElementHooker } from "../../hs-core/hs-elementhooker";
 import { HSGameDataAPI } from "../../hs-core/gds/hs-gamedata-api";
 import { HSQOLQuickbarBase } from "./hs-qolQuickbarBase";
 import { HSIcons } from "../../hs-utils/hs-icons";
-import { GameData } from "../../../types/data-types/hs-player-savedata";
+import { GameData, PlayerData } from "../../../types/data-types/hs-player-savedata";
+import { HSUtils } from "../../hs-utils/hs-utils";
+import { HSGlobal } from "../../hs-core/hs-global";
+import { isTesseractAutoBuyPercentageMode } from "../../hs-core/gds/hs-gamedata-utils";
 
 type AutomationSelectorExpectation = 'ON' | 'OFF' | string;
-type AutomationSelectorSpec = string | { selector: string; expected?: AutomationSelectorExpectation };
+// expectedTranslationKey: the game's translation key for a literal `expected` text (the game writes it in the player's language)
+// isOnForPlayer: reads the state from the live player object instead, when the patcher exposed it (for elements whose text can be wrong)
+type AutomationSelectorSpec = string | {
+    selector: string;
+    expected?: AutomationSelectorExpectation;
+    expectedTranslationKey?: string;
+    isOnForPlayer?: (player: PlayerData) => boolean;
+};
 type AutomationSelectorVisibilityMode = 'self' | 'parent' | 'none';
 
 type AutomationQuickbarRenderKey =
@@ -71,6 +81,13 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
     #selectorElementCache = new Map<string, HTMLElement | null>();
     #selectorMatcherCache = new Map<string, (el: HTMLElement | null) => boolean>();
     #queuedAutomationFrameId: number | null = null;
+    // Game texts in the player's language, by translation key (loaded once at setup, English used until then)
+    // Every language seen this session is kept: after a language switch, the game only re-translates
+    // many toggle texts when they are redrawn (e.g. clicked), so old and new texts coexist in the page.
+    #gameTexts = new Map<string, Set<string>>();
+    #gameTextsLanguage?: string;
+    #requestGameTextsUpdate?: () => void;
+    static readonly #PLACEHOLDER = '@@HS_PLACEHOLDER@@';
 
     static readonly #AUTOMATION_QUICKBAR_WATCH_OPTS: {
         childList: boolean;
@@ -119,27 +136,34 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         { selector: '#tesseractAutoToggle3.auto.autobuyerToggleButton' },
         { selector: '#tesseractAutoToggle4.auto.autobuyerToggleButton' },
         { selector: '#tesseractAutoToggle5.auto.autobuyerToggleButton' },
-        { selector: '#tesseractautobuytoggle', expected: 'Auto Buy: ON' },
-        { selector: '#tesseractautobuymode', expected: 'Mode: PERCENTAGE' },
-        { selector: '#coinAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON' },
-        { selector: '#prestigeAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON' },
-        { selector: '#transcendAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON' },
-        { selector: '#reincarnateAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON' },
-        { selector: '#generatorsAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON' },
+        // These two have a static i18n attribute: on a language switch the game rewrites their text from it
+        // ("Auto Buy: OFF", "Mode: AMOUNT") whatever their state, until they are redrawn. So don't trust their text:
+        // the auto-buy toggle is judged by its border (kept correct), the mode by the player state when available.
+        '#tesseractautobuytoggle',
+        {
+            selector: '#tesseractautobuymode', expected: 'Mode: PERCENTAGE', expectedTranslationKey: 'toggles.modePercentage',
+            isOnForPlayer: (player) => isTesseractAutoBuyPercentageMode(player.resetToggleModes)
+        },
+        { selector: '#coinAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON', expectedTranslationKey: 'general.autoOnColon' },
+        { selector: '#prestigeAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON', expectedTranslationKey: 'general.autoOnColon' },
+        { selector: '#transcendAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON', expectedTranslationKey: 'general.autoOnColon' },
+        { selector: '#reincarnateAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON', expectedTranslationKey: 'general.autoOnColon' },
+        { selector: '#generatorsAutoUpgrade.autobuyerToggleButton', expected: 'Auto: ON', expectedTranslationKey: 'general.autoOnColon' },
     ] as const satisfies readonly AutomationSelectorSpec[];
 
     static readonly #automationRuneSelectors = [
         '#toggleautosacrifice',
-        '#toggleautoBuyFragments',
+        // Its border is white when ON and orange when OFF, so match its text instead
+        { selector: '#toggleautoBuyFragments', expected: 'Auto Buy: ON', expectedTranslationKey: 'runes.talismans.autoBuyOn' },
         '#toggleautofortify',
         '#toggle36',
         '#toggle37'
-    ];
+    ] as const satisfies readonly AutomationSelectorSpec[];
 
     static readonly #automationResearchSelectors = [
-        { selector: '#toggleresearchbuy', expected: 'Upgrade: MAX [if possible]' },
-        { selector: '#toggleautoresearch', expected: 'Automatic: ON' },
-        { selector: '#toggleautoresearchmode', expected: 'Automatic mode: Cheapest' },
+        { selector: '#toggleresearchbuy', expected: 'Upgrade: MAX [if possible]', expectedTranslationKey: 'researches.upgradeMax' },
+        { selector: '#toggleautoresearch', expected: 'Automatic: ON', expectedTranslationKey: 'researches.automaticOn' },
+        { selector: '#toggleautoresearchmode', expected: 'Automatic mode: Cheapest', expectedTranslationKey: 'researches.autoModeCheapest' },
     ] as const satisfies readonly AutomationSelectorSpec[];
 
     static readonly #automationCubeSelectors = [
@@ -166,7 +190,7 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         AutoChallenge: {
             kind: 'solo',
             actionDOM: '#toggleAutoChallengeStart',
-            checks: [{ selector: '#toggleAutoChallengeStart', expected: 'Auto Challenge Sweep [ON]' }],
+            checks: [{ selector: '#toggleAutoChallengeStart', expected: 'Auto Challenge Sweep [ON]', expectedTranslationKey: 'challenges.autoChallengeSweepOn' }],
             gameDataFallback: (gameData: GameData) => !!gameData.autoChallengeRunning,
             buttonId: 'automationQuickBar-autochallenge',
             label: 'Auto-Challenge',
@@ -199,7 +223,7 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         AutoAntSacrifice: {
             kind: 'solo',
             actionDOM: '#toggleAutoSacrificeAnt',
-            checks: [{ selector: '#toggleAutoSacrificeAnt', expected: 'Auto Sacrifice: ON' }],
+            checks: [{ selector: '#toggleAutoSacrificeAnt', expected: 'Auto Sacrifice: ON', expectedTranslationKey: 'ants.autoSacrificeOn' }],
             selectorVisibility: 'parent',
             buttonId: 'automationQuickBar-autoantsacrifice',
             label: 'Auto-Sacrifice',
@@ -223,7 +247,7 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         AutoAscend: {
             kind: 'solo',
             actionDOM: '#ascensionAutoEnable',
-            checks: [{ selector: '#ascensionAutoEnable', expected: 'Auto Ascend [ON]' }],
+            checks: [{ selector: '#ascensionAutoEnable', expected: 'Auto Ascend [ON]', expectedTranslationKey: 'corruptions.autoAscend.on' }],
             buttonId: 'automationQuickBar-autoascend',
             label: 'Auto Ascend',
             iconSrc: './Pictures/Simplified/AscensionNoBorder.png',
@@ -269,8 +293,23 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
             if (ariaPressed === 'true') return true;
             const ariaChecked = el.getAttribute('aria-checked');
             if (ariaChecked === 'true') return true;
+
+            // The game colours most toggles' border by state (green/gold: on, red: off), whatever the language.
+            // Other colours (e.g. white/orange for auto-buy fragments) mean something else: fall through.
+            const borderColor = el.style.borderColor.trim().toLowerCase();
+            if (borderColor === 'green' || borderColor === 'limegreen' || borderColor === 'gold') return true;
+            if (borderColor === 'red') return false;
+
             // Text-based heuristics: look for common status markers
             const text = (el.textContent || '').trim();
+
+            // Game texts in the player's languages (the English patterns below only match English)
+            const normalizedText = this.#normalizeToggleText(text);
+            if (this.#isGameText('wowCubes.autoOff', normalizedText)) return false;
+            if (this.#startsWithGameText('wowCubes.autoOn:prefix', normalizedText)) return true;
+            if (this.#isGameText('toggles.autoUpgradeOn', normalizedText)) return true;
+            if (this.#isGameText('toggles.autoUpgradeOff', normalizedText)) return false;
+
             if (/Auto\s+Open\s*\[OFF\]/i.test(text)) return false;
             if (/Auto\s+Open\s*\[(ON|OFF)\]/i.test(text)) return /\[ON\]/i.test(text);
             if (/Auto\s+Open\s*"?\d+%"?/i.test(text)) return true;
@@ -351,12 +390,18 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         } else if (expected === 'OFF') {
             matcher = (el: HTMLElement | null) => !!el && !this.#isElementOn(el);
         } else {
-            // expected contains a literal text to compare against element text
+            // expected contains a literal text to compare against element text: the English one,
+            // or the game's text in the player's language once loaded (looked up on each call)
             const expectedText = this.#normalizeToggleText(expected);
+            const expectedTranslationKey = typeof selectorSpec === 'string' ? undefined : selectorSpec.expectedTranslationKey;
+            const isOnForPlayer = typeof selectorSpec === 'string' ? undefined : selectorSpec.isOnForPlayer;
             matcher = (el: HTMLElement | null) => {
                 if (!el) return false;
+                const player = HSGlobal.exposedPlayer;
+                if (isOnForPlayer && player) return isOnForPlayer(player);
                 const currentText = this.#normalizeToggleText(el.textContent || '');
-                return currentText === expectedText;
+                return currentText === expectedText
+                    || (!!expectedTranslationKey && this.#isGameText(expectedTranslationKey, currentText));
             };
         }
 
@@ -460,6 +505,64 @@ export class HSQOLAutomationQuickbar extends HSQOLQuickbarBase {
         this.#registerAutomationQuickBarWatchers(requestUpdateUI);
         setTimeout(requestUpdateUI, 10);
         this.#scheduleAutomationQuickbarBootstrapRetries(requestUpdateUI);
+        // Re-evaluate once the game texts in the player's language are known
+        this.#requestGameTextsUpdate = requestUpdateUI;
+        this.#gameTextsLanguage = HSQOLAutomationQuickbar.#currentGameLanguage();
+        void this.#loadGameTexts().then(requestUpdateUI);
+    }
+
+    static #currentGameLanguage(): string {
+        return localStorage.getItem('language') || 'en';
+    }
+
+    /** Known texts for a game translation key, in every language seen this session. */
+    #getGameTexts(key: string): Set<string> | undefined {
+        // On a language switch, add the new language's texts (then re-check); the old ones stay valid
+        const language = HSQOLAutomationQuickbar.#currentGameLanguage();
+        if (language !== this.#gameTextsLanguage) {
+            this.#gameTextsLanguage = language;
+            void this.#loadGameTexts().then(() => this.#requestGameTextsUpdate?.());
+        }
+        return this.#gameTexts.get(key);
+    }
+
+    /** Whether `text` (normalized) is the game's text for `key`, in any language seen this session. */
+    #isGameText(key: string, text: string): boolean {
+        return this.#getGameTexts(key)?.has(text) ?? false;
+    }
+
+    /** Whether `text` (normalized) starts with the game's text for `key`, in any language seen this session. */
+    #startsWithGameText(key: string, text: string): boolean {
+        for (const prefix of this.#getGameTexts(key) ?? []) {
+            if (prefix && text.startsWith(prefix)) return true;
+        }
+        return false;
+    }
+
+    #addGameText(key: string, text: string): void {
+        const texts = this.#gameTexts.get(key) ?? new Set<string>();
+        texts.add(this.#normalizeToggleText(text));
+        this.#gameTexts.set(key, texts);
+    }
+
+    /** Add the game texts compared by this quickbar, in the player's current language. */
+    async #loadGameTexts(): Promise<void> {
+        const keys = new Set(['wowCubes.autoOff', 'toggles.autoUpgradeOn', 'toggles.autoUpgradeOff']);
+        for (const config of Object.values(HSQOLAutomationQuickbar.AUTOMATION_QUICKBAR_CONFIG) as AutomationQuickbarToggleConfig[]) {
+            for (const check of config.kind === 'solo' ? config.checks : config.selectors) {
+                if (typeof check !== 'string' && check.expectedTranslationKey) keys.add(check.expectedTranslationKey);
+            }
+        }
+
+        for (const key of keys) {
+            const text = await HSUtils.getGameTranslation(key);
+            if (text) this.#addGameText(key, text);
+        }
+
+        // "Auto Open {{percent}}%": keep the part before the number
+        const autoOn = await HSUtils.getGameTranslation('wowCubes.autoOn', { percent: HSQOLAutomationQuickbar.#PLACEHOLDER });
+        const autoOnPrefix = autoOn?.split(HSQOLAutomationQuickbar.#PLACEHOLDER)[0];
+        if (autoOnPrefix?.trim()) this.#addGameText('wowCubes.autoOn:prefix', autoOnPrefix);
     }
 
     /**

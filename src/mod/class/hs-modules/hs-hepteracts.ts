@@ -1,6 +1,7 @@
 import { CUBE_VIEW, MAIN_VIEW } from "../../types/module-types/hs-gamestate-types";
 import { HSElementHooker } from "../hs-core/hs-elementhooker";
 import { HSGameState } from "../hs-core/hs-gamestate";
+import { HSGlobal } from "../hs-core/hs-global";
 import { HSLogger } from "../hs-core/hs-logger";
 import { HSModule } from "../hs-core/module/hs-module";
 import { HSModuleManager } from "../hs-core/module/hs-module-manager";
@@ -505,7 +506,11 @@ export class HSHepteracts extends HSModule {
                             // This is the small "ON/OFF" toggle button which is used to enable/disable the hepteract buy notifications
                             const hepteractBuyNotificationToggle = await HSElementHooker.HookElement('#toggle35') as HTMLButtonElement;
 
-                            if (hepteractBuyNotificationToggle && hepteractBuyNotificationToggle.innerText.includes('ON')) {
+                            // Read the toggle state, not its text (translated: e.g. OUI/NON in French, where "NON" contains "ON")
+                            const isNotificationOn = hepteractBuyNotificationToggle
+                                && (HSGlobal.exposedPlayer?.toggles?.[35]
+                                    ?? hepteractBuyNotificationToggle.style.border.includes('green'));
+                            if (isNotificationOn) {
                                 HSLogger.info(`Turned hepteract notification toggle OFF`, this.context);
                                 hepteractBuyNotificationToggle.click();
                             }

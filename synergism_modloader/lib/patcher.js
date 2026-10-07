@@ -840,16 +840,19 @@ function startBrowserLoader(options) {
             // Phase 4: Wait for the game to finish loading.
             // The offline container is the game's own "loading done" signal —
             // it only appears after the save has been read and the UI is ready.
+            // Also accept body.loading being gone: the page starts with it and only
+            // the popup's exit removes it, so the player already closed the popup.
             log('Phase 4 — waiting for offlineContainer to appear...');
             await waitFor(
                 () => {
                     const el = document.getElementById('offlineContainer');
-                    return el && getComputedStyle(el).display !== 'none';
+                    return (el && getComputedStyle(el).display !== 'none')
+                        || !document.body.classList.contains('loading');
                 },
                 60000,
                 'offlineContainer to become visible'
             );
-            log('offlineContainer visible — game is loaded');
+            log('Game is loaded (offlineContainer visible or already closed)');
 
             const isExposed = () => window.__HS_EXPOSED && window.__HS_EXPORT_EXPOSED;
             const isOfflineOpen = () => {
