@@ -289,6 +289,49 @@ export class HSUtils {
         return nullProxy as T;
     }
 
+    static #translationFiles = new Map<string, Promise<Record<string, unknown> | undefined>>();
+
+    /** Fetch a game translation file the same way the game does (cached per language). */
+    static #loadTranslationFile(lang: string): Promise<Record<string, unknown> | undefined> {
+        let file = this.#translationFiles.get(lang);
+        if (!file) {
+            file = fetch(`./translations/${lang}.json`)
+                .catch(() => fetch(`https://synergism.cc/translations/${lang}.json`))
+                .then(r => r.ok ? r.json() as Promise<Record<string, unknown>> : undefined)
+                .catch(() => undefined)
+                .then(json => {
+                    // Don't cache failures, so a later call can retry
+                    if (!json) this.#translationFiles.delete(lang);
+                    return json;
+                });
+            this.#translationFiles.set(lang, file);
+        }
+        return file;
+    }
+
+    /**
+     * Get a game UI string (e.g. 'ambrosia.importTree.success') in the player's language.
+     * Uses the game's i18next when the patcher exposed it, else the game's translation files,
+     * with English as fallback like the game. Returns undefined if the key can't be resolved.
+     */
+    static async getGameTranslation(key: string): Promise<string | undefined> {
+        const i18n = (window as any).__HS_i18next;
+        if (typeof i18n?.t === 'function') {
+            const text = i18n.t(key);
+            if (typeof text === 'string' && text !== key) return text;
+        }
+
+        const resolve = (file: Record<string, unknown> | undefined): string | undefined => {
+            const value = key.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], file);
+            return typeof value === 'string' && value.length > 0 ? value : undefined;
+        };
+
+        const lang = localStorage.getItem('language') || 'en';
+        const text = resolve(await this.#loadTranslationFile(lang));
+        if (text || lang === 'en') return text;
+        return resolve(await this.#loadTranslationFile('en'));
+    }
+
     // Replace color tags for panel logging
     static parseColorTags(msg: string): string {
         const tagPattern = /<([a-zA-Z]+|#[0-9A-Fa-f]{3,8})>(.*?)<\/\1>/g;

@@ -41,6 +41,7 @@ export class HSGameData extends HSModule {
     #last_mitm_gamedata?: string;
     #mitm_atob_data: string | undefined;
     #mitmProcessScheduled = false;
+    #mitmCaptureCount = 0;
     #btoaHacked = false;
     #atobHacked = false;
     #nativeBtoa?: typeof window.btoa;
@@ -236,6 +237,24 @@ export class HSGameData extends HSModule {
         if (this.#gameDataAPI) {
             this.#gameDataAPI._updateCampaignData(this.#campaignData);
         }
+    }
+
+    /**
+     * SYNCHRONOUSLY triggers a game save and returns the raw save JSON captured by the btoa hook.
+     * For callers that cannot await (e.g. right before a click whose ordering matters).
+     * @returns The fresh save JSON, or undefined if no save was captured (e.g. during a time warp)
+     */
+    forceCaptureRawSaveSync(): string | undefined {
+        const saveBtn = this.#manualSaveButton ?? document.getElementById('savegame') as HTMLButtonElement | null;
+        if (!saveBtn) return undefined;
+
+        this.#hackJSNativebtoa();
+
+        // The game's save handler calls btoa synchronously, so a capture happens before dispatchEvent returns
+        const captureCountBefore = this.#mitmCaptureCount;
+        saveBtn.dispatchEvent(this.#saveTriggerEvent);
+
+        return this.#mitmCaptureCount !== captureCountBefore ? this.#mitm_gamedata : undefined;
     }
 
     /**
@@ -781,6 +800,7 @@ export class HSGameData extends HSModule {
             // This is the save payload as the game produces it.
             if (s && s.length > 0 && s[0] === '{') {
                 self.#mitm_gamedata = s;
+                self.#mitmCaptureCount++;
                 if (!self.#mitmProcessScheduled) {
                     self.#mitmProcessScheduled = true;
                     queueMicrotask(() => {

@@ -1,7 +1,10 @@
-import { AMBROSIA_LOADOUT_SLOT } from "../../types/module-types/hs-ambrosia-types";
+import { AMBROSIA_LOADOUT_SLOT, BlueberryLoadoutMode } from "../../types/module-types/hs-ambrosia-types";
 import { HSLogger } from "../hs-core/hs-logger";
 import { HSUtils } from "../hs-utils/hs-utils";
 import { HSElementHooker } from "../hs-core/hs-elementhooker";
+import { HSGlobal } from "../hs-core/hs-global";
+import { HSModuleManager } from "../hs-core/module/hs-module-manager";
+import type { HSGameData } from "../hs-core/gds/hs-gamedata";
 
 /**
  * Class: HSAmbrosiaHelper
@@ -15,6 +18,10 @@ export class HSAmbrosiaHelper {
 
     static #cachedBlueberryToggleModeButton: HTMLButtonElement | undefined;
     static #cachedQuickbarSummaryElements: HTMLElement[] | undefined;
+    static readonly #englishModeLabels: Record<BlueberryLoadoutMode, string> = {
+        loadTree: 'MODE: LOAD LOADOUT',
+        saveTree: 'MODE: SAVE LOADOUT'
+    };
 
     static async cacheBlueberryToggleModeButton(): Promise<HTMLButtonElement | undefined> {
         if (this.#cachedBlueberryToggleModeButton instanceof HTMLButtonElement) {
@@ -88,16 +95,34 @@ export class HSAmbrosiaHelper {
         return loadoutEnum;
     }
 
-    /** Whether the game is currently in the specified loadout mode (no side effects). */
-    static isLoadoutMode(mode: 'LOAD' | 'SAVE'): boolean {
+    /**
+     * Read the game's loadout mode, independent of the game language.
+     * 1. Live player object (patched loaders), 2. a fresh save captured synchronously by GDS.
+     * Returns undefined when neither is available.
+     */
+    static #readLoadoutMode(): BlueberryLoadoutMode | undefined {
+        const playerMode = HSGlobal.exposedPlayer?.blueberryLoadoutMode;
+        if (playerMode === 'loadTree' || playerMode === 'saveTree') return playerMode;
+
+        const rawSave = HSModuleManager.getModule<HSGameData>('HSGameData')?.forceCaptureRawSaveSync();
+        const savedMode = rawSave?.match(/"blueberryLoadoutMode"\s*:\s*"(loadTree|saveTree)"/)?.[1];
+        return savedMode as BlueberryLoadoutMode | undefined;
+    }
+
+    /** Whether the game is currently in the specified loadout mode. May trigger a game save (GDS). */
+    static isLoadoutMode(mode: BlueberryLoadoutMode): boolean {
+        const currentMode = this.#readLoadoutMode();
+        if (currentMode) return currentMode === mode;
+
+        // Last resort: English button text
         const modeButton = this.#cachedBlueberryToggleModeButton;
         if (!modeButton) { HSLogger.warn(`modeButton not found.`, this.#context); return false; }
 
-        return modeButton.innerText?.trim().toUpperCase() === `MODE: ${mode} LOADOUT`;
+        return modeButton.innerText?.trim().toUpperCase() === HSAmbrosiaHelper.#englishModeLabels[mode];
     }
 
     /** Ensure the game is in the specified loadout mode before clicking slots. */
-    static ensureLoadoutMode(mode: 'LOAD' | 'SAVE'): void {
+    static ensureLoadoutMode(mode: BlueberryLoadoutMode): void {
         const modeButton = this.#cachedBlueberryToggleModeButton;
         if (!modeButton) { HSLogger.warn(`modeButton not found.`, this.#context); return; }
 

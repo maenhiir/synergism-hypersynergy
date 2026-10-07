@@ -55,6 +55,7 @@ export class HSAmbrosia extends HSModule
     #state = {
         persistentAmbrosiaLevelsDisplayEnabled: true
     };
+    #persistentAmbrosiaLevelsSignature?: string;
     // RETIRED: #debugElement was used only by the Ambrosia AFK/idle swapper.
     // #debugElement?: HTMLDivElement;
 
@@ -260,11 +261,15 @@ export class HSAmbrosia extends HSModule
 
         this.updateActiveLoadout(slotEnum);
 
+        // Programmatic slot clicks (quickbar, Add/Time codes, heater...) don't move the mouse,
+        // so the hover handlers won't refresh the persistent levels: do it here.
+        this.#queuePersistentAmbrosiaLevelsRefresh();
+
         // Only a successful load changes the active modules. The game's own
         // slot handler has already run (this listener is delegated, bubble
         // phase), so the active class reflects the result of this click.
         if (this.#isAmbrosiaTabActive
-            && HSAmbrosiaHelper.isLoadoutMode('LOAD')
+            && HSAmbrosiaHelper.isLoadoutMode('loadTree')
             && slotElement.classList.contains('activeBlueberryLoadout')) {
             void this.#queueBarIncomeRefresh(true);
         }
@@ -697,7 +702,7 @@ export class HSAmbrosia extends HSModule
             const addLoadoutBtn = this.quickbar.getClonedButtonRef(addLoadout);
             if (!addLoadout || !addLoadoutBtn) { HSLogger.warn('Invalid autoLoadoutAdd setting - cannot resolve addLoadout or loadoutSlot', this.context); return; }
 
-            HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
 
             // We DON'T want any await before that...
             // This calls hiddenAction via the quickbar click which kills all popups except Prompts
@@ -718,7 +723,7 @@ export class HSAmbrosia extends HSModule
             const timeLoadoutBtn = this.quickbar.getClonedButtonRef(timeLoadout);
             if (!timeLoadout || !timeLoadoutBtn) { HSLogger.warn('Invalid autoLoadoutTime setting - cannot resolve timeLoadout or loadoutSlot', this.context); return; }
 
-            HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
             timeLoadoutBtn.click();
 
             // Let the game process the click
@@ -820,6 +825,8 @@ export class HSAmbrosia extends HSModule
         if (this.#isAmbrosiaTabActive) {
             this.#attachPersistentAmbrosiaLevelsDisplayListeners();
             this.#displayPersistentAmbrosiaLevels();
+            // Fresh render: the next GDS update only records the tree as reference
+            this.#persistentAmbrosiaLevelsSignature = undefined;
         }
 
         void this.saveState();
@@ -890,12 +897,39 @@ export class HSAmbrosia extends HSModule
         const button = this.#persistentAmbrosiaLevelsToggleButton;
         if (!button) { HSLogger.warn('displayPersistentAmbrosiaLevels() missing persistent levels button', this.context); return; }
 
+        // The game's level display only adds classes (dimmed, superDimmed, maxBlueberryLevel)
+        // and never removes them, so reset it first (its mouseout handler) to avoid stale styles.
+        this.#hidePersistentAmbrosiaLevelsDisplay();
+
         const event = new MouseEvent('mouseover', {
             bubbles: true,
             cancelable: true,
             view: window
         });
         button.dispatchEvent(event);
+    }
+
+    /** Re-render the persistent levels once the game has processed a tree change. */
+    #queuePersistentAmbrosiaLevelsRefresh() {
+        if (!this.#isAmbrosiaTabActive) return;
+        setTimeout(() => {
+            this.#maybeRestorePersistentAmbrosiaLevelsDisplay();
+        }, 0);
+    }
+
+    /** Refresh the persistent levels when the tree in the save data changed (any source: game, mod, autosing). */
+    #refreshPersistentAmbrosiaLevelsOnTreeChange(gameData: GameData) {
+        if (!this.#isAmbrosiaTabActive || !this.#state.persistentAmbrosiaLevelsDisplayEnabled) return;
+
+        // The 🔎 view also shows red and purple levels, so they are part of the signature
+        const signature = JSON.stringify(gameData.ambrosiaUpgrades) + JSON.stringify(gameData.redAmbrosiaUpgrades);
+        if (signature === this.#persistentAmbrosiaLevelsSignature) return;
+
+        const isFirstSignature = this.#persistentAmbrosiaLevelsSignature === undefined;
+        this.#persistentAmbrosiaLevelsSignature = signature;
+        if (!isFirstSignature) {
+            this.#maybeRestorePersistentAmbrosiaLevelsDisplay();
+        }
     }
 
     #attachPersistentAmbrosiaLevelsDisplayListeners() {
@@ -1296,7 +1330,7 @@ export class HSAmbrosia extends HSModule
             // A single loadout goes through the game's quick save (no mode switch).
             // Several loadouts target arbitrary slots, which still needs SAVE mode.
             if (!isSingleLoadout) {
-                HSAmbrosiaHelper.ensureLoadoutMode('SAVE');
+                HSAmbrosiaHelper.ensureLoadoutMode('saveTree');
             }
 
             importedCount = 0;
@@ -1354,7 +1388,7 @@ export class HSAmbrosia extends HSModule
             HSUI.Notify('Quick Import failed', { notificationType: 'error' });
         } finally {
             await HSUtils.stopDialogWatcher();
-            HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
             // RETIRED: AFK/idle swapper restoration after quick import.
             // if (restoreAfkSwapper) {
             //     afkSwapperSetting.enable();
@@ -1402,11 +1436,11 @@ export class HSAmbrosia extends HSModule
         const quickSaveBtn = document.getElementById('blueberryQuickSave') as HTMLButtonElement | null;
 
         if (!gameActiveSlot || !quickSaveBtn) {
-            HSAmbrosiaHelper.ensureLoadoutMode('SAVE');
+            HSAmbrosiaHelper.ensureLoadoutMode('saveTree');
             try {
                 return await this.#importLoadoutLine(line, fallbackSlotIndex);
             } finally {
-                HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+                HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
             }
         }
 
@@ -1428,6 +1462,9 @@ export class HSAmbrosia extends HSModule
         if (!fileInput) {
             throw new Error('Import input element not found');
         }
+
+        // Resolved before the import so the alert check below doesn't wait on a fetch
+        const successText = await HSUtils.getGameTranslation('ambrosia.importTree.success');
 
         const normalizedLine = HSAmbrosia.#normalizeQuickImportLoadout(line);
         const blob = new Blob([normalizedLine], { type: 'application/json' });
@@ -1477,7 +1514,10 @@ export class HSAmbrosia extends HSModule
             await HSUtils.sleep(5);
         }
 
-        const isSuccess = (alertText || '').toLowerCase().includes('tree successfully imported');
+        // Match the game's success message in the player's language (English kept as fallback)
+        const normalizedAlert = alertText.toLowerCase();
+        const isSuccess = [successText, 'Tree successfully imported']
+            .some(text => !!text && normalizedAlert.includes(text.trim().toLowerCase()));
         if (!isSuccess) {
             try {
                 // Clear the file input to avoid residual state
@@ -1485,6 +1525,9 @@ export class HSAmbrosia extends HSModule
             } catch { /* ignore */ }
             return { success: false, reason: alertText || 'Unknown error' };
         }
+
+        // The game applied the imported tree (no slot click involved)
+        this.#queuePersistentAmbrosiaLevelsRefresh();
 
         return { success: true };
     }
@@ -1690,6 +1733,8 @@ export class HSAmbrosia extends HSModule
 
         const gameData = gameDataAPI.getGameData();
         if (!gameData) return;
+
+        this.#refreshPersistentAmbrosiaLevelsOnTreeChange(gameData);
 
         if (this.#berryMinibarsEnabled) {
             this.#updateBerryMinibars(gameData, gameDataAPI);
@@ -1948,7 +1993,7 @@ export class HSAmbrosia extends HSModule
             }
 
             if (loadoutSlot) {
-                HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+                HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
                 await HSUtils.hiddenAction(async () => {
                     loadoutSlot!.click();
                 });

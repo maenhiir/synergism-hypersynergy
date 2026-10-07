@@ -125,7 +125,7 @@ export class HSAutosingSettingsFixer {
      * reconstructing the fixer instance.
      */
     public static async fixAllSettings(): Promise<string[]> {
-        HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+        HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
         await HSAutosingSettingsFixer.#ensureAllTogglesOn();
         await HSAutosingSettingsFixer.#ensurePercentSuffixElements();
         await HSAutosingSettingsFixer.#ensureGreenButtons();

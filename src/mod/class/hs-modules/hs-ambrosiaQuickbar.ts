@@ -377,7 +377,7 @@ export class HSAmbrosiaQuickbar {
         const slotEnum = HSAmbrosiaHelper.getSlotEnumBySlotId(buttonId);
         if (!slotEnum) { HSLogger.warn(`Could not resolve Ambrosia slot enum for ${buttonId}`, this.context); return; }
 
-        HSAmbrosiaHelper.ensureLoadoutMode('LOAD');
+        HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
         await HSUtils.hiddenAction(async () => { realButton.click(); });
     }
 
