@@ -3,8 +3,6 @@ import { HSLogger } from "./hs-core/hs-logger";
 import { HSModuleManager } from "./hs-core/module/hs-module-manager";
 import { HSUI } from "./hs-core/hs-ui";
 import { HSUIC } from "./hs-core/hs-ui-components";
-import corruption_ref_b64 from "inline:../resource/txt/corruption_ref.txt";
-import corruption_ref_b64_2 from "inline:../resource/txt/corruption_ref_onemind.txt";
 import { HSSettings } from "./hs-core/settings/hs-settings";
 import { HSSettingsUI } from "./hs-core/settings/hs-settings-ui";
 import { HSGlobal } from "./hs-core/hs-global";
@@ -87,6 +85,134 @@ export class Hypersynergism {
 
         HSGithub.startVersionPolling(HSGlobal.Release.checkIntervalMs);
         this.#startVanillaGlobalEventPolling();
+        void this.#onGameLoaded();
+    }
+
+    /**
+     * Once the game has finished loading: expose the patched game internals (hidden behind the offline
+     * popup when it is open), then close the popup if the autoDismissOfflinePopup setting is on.
+     * The browser loader usually did both already, in which case this does nothing.
+     */
+    async #onGameLoaded(): Promise<void> {
+        const autoDismissPopup = !!HSSettings.getSetting('autoDismissOfflinePopup')?.isEnabled();
+
+        await this.#waitForGameLoaded();
+        await this.#ensurePatcherExposure(autoDismissPopup);
+
+        if (autoDismissPopup) this.#dismissOfflinePopup();
+    }
+
+    /** Close the offline progress popup if it is open. */
+    #dismissOfflinePopup() {
+        if (document.getElementById('offlineContainer')?.style.display !== 'flex') return;
+        document.getElementById('exitOffline')?.click();
+    }
+
+    /**
+     * Resolve once the game has finished loading. Same signal as the browser loader: the offline progress
+     * popup is shown. Also resolves when the popup was already dismissed (body.loading removed by exitOffline).
+     */
+    #waitForGameLoaded(): Promise<void> {
+        const isLoaded = () => document.getElementById('offlineContainer')?.style.display === 'flex'
+            || !document.body.classList.contains('loading');
+
+        return new Promise(resolve => {
+            if (isLoaded()) { resolve(); return; }
+
+            const observer = new MutationObserver(() => {
+                if (!isLoaded()) return;
+                observer.disconnect();
+                resolve();
+            });
+            observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'style'], subtree: true });
+        });
+    }
+
+    /**
+     * Patched bundles expose some game internals (__HS_i18next, __HS_synergismStage, __HS_exportSynergism...)
+     * only once the game runs the patched functions. The browser loader triggers them before loading the mod,
+     * the Steam injector doesn't, so do the same here: open Settings → Stats for nerds → Misc, run a silent
+     * export, then go back to the previous tab. Called once the game has loaded; the game's tab buttons don't
+     * check for the offline popup, so the navigation runs hidden behind it when it is open (the stage itself
+     * is only exposed once the popup closes, see below).
+     * Done here in the mod rather than in the Steam injector, so it reaches Steam players with a mod release
+     * instead of requiring a new exe launcher. Skipped when the loader already did it (browser).
+     */
+    async #ensurePatcherExposure(autoDismissPopup: boolean): Promise<void> {
+        const w = window as any;
+        // Without the patched bundle (bookmarklet loader), navigating can't expose anything
+        if (!HSGlobal.exposedPlayer) return;
+
+        const isExposed = () => !!w.__HS_STAGE_EXPOSED && !!w.__HS_EXPORT_EXPOSED;
+        if (isExposed()) return;
+
+        const click = async (id: string) => {
+            document.getElementById(id)?.click();
+            await HSUtils.sleep(100);
+        };
+        const waitForPopupClosed = () => new Promise<void>(resolve => {
+            if (!document.body.classList.contains('loading')) { resolve(); return; }
+            const observer = new MutationObserver(() => {
+                if (document.body.classList.contains('loading')) return;
+                observer.disconnect();
+                resolve();
+            });
+            observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        });
+
+        // Only the active main tab button has aria-current (its panel also gets .active-tab)
+        const previousTab = document.querySelector<HTMLElement>('[aria-current="page"]');
+        const settingsTab = document.getElementById('settingstab');
+
+        // Safety net: the game should accept tab clicks once loaded, even behind the offline popup
+        for (let check = 0; check < 10; check++) {
+            await click('settingstab');
+            if (settingsTab?.classList.contains('active-tab')) break;
+            await HSUtils.sleep(1000);
+        }
+        if (!settingsTab?.classList.contains('active-tab')) {
+            HSLogger.warn('Could not expose patched game internals: the settings tab did not open', this.#context);
+            return;
+        }
+
+        if (!w.__HS_STAGE_EXPOSED) {
+            await click('switchSettingSubTab4');
+            await click('kMisc');
+        }
+
+        if (!w.__HS_EXPORT_EXPOSED) {
+            // The patched exportSynergism exposes itself right away, then returns early while this flag is set
+            w.__HS_SILENT_EXPORT = true;
+            try {
+                document.getElementById('exportgame')?.click();
+            } finally {
+                w.__HS_SILENT_EXPORT = false;
+            }
+        }
+
+        // The stage is only exposed when the game renders the Misc stats, and the game pauses its display
+        // updates while the offline popup is open. It happens on the first update after the popup closes,
+        // with Misc still active behind it: close it (setting on) or wait for the player to (no limit).
+        if (document.body.classList.contains('loading')) {
+            if (autoDismissPopup) this.#dismissOfflinePopup();
+            await waitForPopupClosed();
+        }
+
+        const stageDeadline = Date.now() + 5000;
+        while (!w.__HS_STAGE_EXPOSED && Date.now() < stageDeadline) {
+            await HSUtils.sleep(100);
+        }
+
+        // Go back to where the player was, unless they already moved away from Settings
+        if (settingsTab?.classList.contains('active-tab')) {
+            (previousTab ?? document.getElementById('buildingstab'))?.click();
+        }
+
+        if (isExposed()) {
+            HSLogger.log('Patched game internals exposed (stage, i18n, export)', this.#context);
+        } else {
+            HSLogger.warn(`Could not expose patched game internals (stage: ${!!w.__HS_STAGE_EXPOSED}, export: ${!!w.__HS_EXPORT_EXPOSED})`, this.#context);
+        }
     }
 
     #startVanillaGlobalEventPolling() {

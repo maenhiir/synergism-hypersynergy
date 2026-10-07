@@ -819,6 +819,22 @@ function startBrowserLoader(options) {
     // ─── Phases 4–6: Wait for game, dismiss offline modal, expose, load mod ───────────
     // ==================================================================================
 
+    // Read a boolean mod setting from the mod's own storage (HSSettings → HSStorage:
+    // key 'hs-settings', JSON encoded twice, { [settingName]: { enabled, ... } }).
+    // The mod isn't loaded yet at this point, so fall back to its default.
+    function readModBooleanSetting(settingName, fallback) {
+        try {
+            const raw = localStorage.getItem('hs-settings');
+            if (!raw) return fallback;
+            let settings = JSON.parse(raw);
+            if (typeof settings === 'string') settings = JSON.parse(settings);
+            const enabled = settings?.[settingName]?.enabled;
+            return typeof enabled === 'boolean' ? enabled : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
     async function runPostLoadSequence() {
         try {
             // Phase 4: Wait for the game to finish loading.
@@ -835,42 +851,69 @@ function startBrowserLoader(options) {
             );
             log('offlineContainer visible — game is loaded');
 
-            // Dismiss the offline container.
-            const offlineContainer = document.getElementById('offlineContainer');
-            log('Dismissing offlineContainer...');
-            const exitBtn = document.getElementById('exitOffline')
-                || offlineContainer.querySelector('button');
-            if (exitBtn) exitBtn.click();
+            const isExposed = () => window.__HS_EXPOSED && window.__HS_EXPORT_EXPOSED;
+            const isOfflineOpen = () => {
+                const el = document.getElementById('offlineContainer');
+                return !!el && getComputedStyle(el).display !== 'none';
+            };
+            const dismissOffline = async () => {
+                if (!isOfflineOpen()) return;
+                log('Dismissing offlineContainer...');
+                const offlineContainer = document.getElementById('offlineContainer');
+                const exitBtn = document.getElementById('exitOffline')
+                    || offlineContainer.querySelector('button');
+                if (exitBtn) exitBtn.click();
+                // Wait 100 ms for the dismissal animation and any post-modal setup.
+                await new Promise(r => setTimeout(r, 100));
+            };
+            const navigateForExposure = async () => {
+                await clickWhenAvailable('settingstab');
+                await new Promise(r => setTimeout(r, 300));
+                await clickWhenAvailable('switchSettingSubTab4');
+                await new Promise(r => setTimeout(r, 300));
+                await clickWhenAvailable('kMisc');
+                await new Promise(r => setTimeout(r, 300));
 
-            // Wait 100 ms for the dismissal animation and any post-modal setup.
-            await new Promise(r => setTimeout(r, 100));
+                // Trigger exportSynergism silently to expose both export functions.
+                window.__HS_SILENT_EXPORT = true;
+                await clickWhenAvailable('exportgame');
+                window.__HS_SILENT_EXPORT = false;
+            };
 
             // Phase 5: Trigger exposure by navigating to Settings → Misc → Export.
-            log('Phase 5 — navigating to Settings to trigger exposure...');
-            await clickWhenAvailable('settingstab');
-            await new Promise(r => setTimeout(r, 300));
-            await clickWhenAvailable('switchSettingSubTab4');
-            await new Promise(r => setTimeout(r, 300));
-            await clickWhenAvailable('kMisc');
-            await new Promise(r => setTimeout(r, 300));
+            // Done behind the offline popup: the game's tab buttons don't check for it,
+            // so the player doesn't see the tab switching. The export exposes itself
+            // right away (its click handler runs it directly).
+            log('Phase 5 — navigating to Settings (behind the offline popup) to trigger exposure...');
+            await navigateForExposure();
+            await waitFor(() => window.__HS_EXPORT_EXPOSED, 20000, '__HS_EXPORT_EXPOSED');
 
-            // Trigger exportSynergism silently to expose both export functions.
-            window.__HS_SILENT_EXPORT = true;
-            await clickWhenAvailable('exportgame');
-            window.__HS_SILENT_EXPORT = false;
+            // The stage is only exposed when the game renders the Misc stats, and the game
+            // pauses its display updates while the offline popup is open. So it happens on
+            // the first update after the popup closes, with Misc still active behind it.
+            if (readModBooleanSetting('autoDismissOfflinePopup', true)) {
+                await dismissOffline();
+            }
 
-            // Wait for both exposure flags.
-            log('Waiting for stage and export exposure flags...');
-            await waitFor(
-                () => window.__HS_EXPOSED && window.__HS_EXPORT_EXPOSED,
-                20000,
-                '__HS_EXPOSED and __HS_EXPORT_EXPOSED'
-            );
-            log('Exposure complete — stage and export are ready');
+            if (!isOfflineOpen()) {
+                log('Waiting for stage and export exposure flags...');
+                await waitFor(isExposed, 20000, '__HS_EXPOSED and __HS_EXPORT_EXPOSED');
+                log('Exposure complete — stage and export are ready');
 
-            // Return to Buildings tab so the game looks normal to the player.
-            await clickWhenAvailable('buildingstab');
-            await new Promise(r => setTimeout(r, 300));
+                // Return to Buildings tab so the game looks normal to the player.
+                await clickWhenAvailable('buildingstab');
+                await new Promise(r => setTimeout(r, 300));
+            } else {
+                // Popup kept open (autoDismissOfflinePopup is off): load the mod now, the stage
+                // gets exposed when the player closes the popup, then go back to Buildings.
+                log('Keeping offlineContainer open (autoDismissOfflinePopup is off) — stage will be exposed when it closes');
+                waitFor(() => window.__HS_EXPOSED, 24 * 3600 * 1000, '__HS_EXPOSED')
+                    .then(() => {
+                        log('Exposure complete — stage and export are ready');
+                        return clickWhenAvailable('buildingstab');
+                    })
+                    .catch(e => warn('Stage exposure after the offline popup failed:', e));
+            }
 
             // Phase 6: Load the mod.
             await loadMod();

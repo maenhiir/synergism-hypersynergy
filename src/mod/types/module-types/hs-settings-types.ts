@@ -21,6 +21,7 @@ export interface HSSettingsDefinition {
 
     // UI Settings
     hiddenVanillaTabs: HiddenVanillaTabsSetting;
+    autoDismissOfflinePopup: AutoDismissOfflinePopupSetting;
 
     // Log Settings
     logTimestamp: LogTimestampSetting;
@@ -181,6 +182,7 @@ export interface ReactiveMouseHoverSetting extends HSSettingBase<number> { }
 export interface AutoclickSetting extends HSSettingBase<number> { }
 export interface AutoClickIgnoreElementsSetting extends HSSettingBase<boolean> { }
 export interface HiddenVanillaTabsSetting extends HSSettingBase<string[]> { }
+export interface AutoDismissOfflinePopupSetting extends HSSettingBase<boolean> { }
 
 // Ambrosia Settings
 export interface AddTimeAutoLoadoutsSetting extends HSSettingBase<boolean> { }

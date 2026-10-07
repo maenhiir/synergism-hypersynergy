@@ -136,10 +136,10 @@ export class HSSettingActions {
 
             if (patchMod) {
                 if (params.disable && params.disable === true) {
-                    console.log("Disabling patch", params.patchConfig.patchName, context);
+                    HSLogger.debug(() => `Disabling patch ${params.patchConfig!.patchName}`, context);
                     await patchMod.revertPatch(params.patchConfig.patchName);
                 } else {
-                    console.log("Enabling patch", params.patchConfig.patchName, context);
+                    HSLogger.debug(() => `Enabling patch ${params.patchConfig!.patchName}`, context);
                     await patchMod.applyPatch(params.patchConfig.patchName);
                 }
             }

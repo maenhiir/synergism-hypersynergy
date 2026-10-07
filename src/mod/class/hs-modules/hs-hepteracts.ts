@@ -333,16 +333,6 @@ export class HSHepteracts extends HSModule {
                     self.#ownedQuarkElement = await HSElementHooker.HookElement('#quarkDisplay') as HTMLElement;
                     const initialQuarks = self.#parseForgeNumber(self.#ownedQuarkElement.innerText);
                     if (!Number.isNaN(initialQuarks)) self.#ownedQuarks = initialQuarks;
-                    setInterval(() => {
-                        const current = document.querySelector('#quarkDisplay');
-
-                        console.log(
-                            'Same element?',
-                            current === self.#ownedQuarkElement,
-                            'Current text:',
-                            current?.textContent
-                        );
-                    }, 5000);
                     self.#ownedQuarksWatch = HSElementHooker.watchElement(self.#ownedQuarkElement, (value) => {
                         const quarks = self.#parseForgeNumber(value ?? '');
                         if (Number.isNaN(quarks)) {
@@ -350,7 +340,6 @@ export class HSHepteracts extends HSModule {
                         } else {
                             self.#ownedQuarks = quarks;
                         }
-
                     },
                         {
                             greedy: true,
