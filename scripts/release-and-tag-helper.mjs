@@ -422,24 +422,33 @@ async function chooseTarget(status) {
     const conflictText = conflicts.join(' and ');
     warn(`Target version ${status.pkgVersion} already exists in ${conflictText}. Auto bump recommended.`);
 
-    const semverMatch = status.pkgVersion.match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-.]+))?$/);
-    if (!semverMatch) fatal('Unable to parse package version for bump. Expected semver like 2.10.0 or 2.10.0-dev3.');
+    // Semver plus this project's optional letter suffix on the patch number: 2.14.4, 2.14.4b, 2.14.4b-dev1
+    const semverMatch = status.pkgVersion.match(/^(\d+)\.(\d+)\.(\d+)([a-z]?)(?:-([0-9A-Za-z-.]+))?$/);
+    if (!semverMatch) fatal('Unable to parse package version for bump. Expected a version like 2.10.0, 2.10.0b or 2.10.0b-dev3.');
 
     const major = Number(semverMatch[1]);
     const minor = Number(semverMatch[2]);
     const patch = Number(semverMatch[3]);
-    const pre = semverMatch[4] || '';
+    const letter = semverMatch[4] || '';
+    const pre = semverMatch[5] || '';
+    const base = `${major}.${minor}.${patch}${letter}`;
 
     let newVersion;
     if (pre) {
+        // Pre-release: next build of the same version (2.14.4b-dev1 -> 2.14.4b-dev2)
         const preMatch = pre.match(/^([a-zA-Z-]+)(\d+)$/);
         if (preMatch) {
             const preName = preMatch[1];
             const preNum = Number(preMatch[2]);
-            newVersion = `${major}.${minor}.${patch}-${preName}${preNum + 1}`;
+            newVersion = `${base}-${preName}${preNum + 1}`;
         } else {
             newVersion = `${major}.${minor}.${patch + 1}`;
         }
+    } else if (letter) {
+        // Lettered release: next letter (2.14.4b -> 2.14.4c), or the next patch after "z"
+        newVersion = letter === 'z'
+            ? `${major}.${minor}.${patch + 1}`
+            : `${major}.${minor}.${patch}${String.fromCharCode(letter.charCodeAt(0) + 1)}`;
     } else {
         newVersion = `${major}.${minor}.${patch + 1}`;
     }
