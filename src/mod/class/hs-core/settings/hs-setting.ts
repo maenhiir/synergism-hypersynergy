@@ -18,8 +18,6 @@ export interface HSSettingToggleOptions {
  * Author: Swiffy
  */
 export abstract class HSSetting<T extends HSSettingType> {
-    static #isDisablingGameDataDependents = false;
-
     protected context = 'HSSetting';
 
     #settingEnabledString;
@@ -82,30 +80,8 @@ export abstract class HSSetting<T extends HSSettingType> {
             height: dependentNames.length > 2 ? 80 : 60,
         });
 
-        HSSetting.#isDisablingGameDataDependents = true;
-        try {
-            for (const setting of dependents) {
-                setting.disable();
-            }
-        } finally {
-            HSSetting.#isDisablingGameDataDependents = false;
-        }
-    }
-
-    #disableGameDataIfUnused(): void {
-        if (
-            HSSetting.#isDisablingGameDataDependents
-            || this.definition.settingName === 'useGameData'
-            || this.definition.usesGameData !== true
-            || this.definition.enabled
-        ) return;
-
-        if (this.#getEnabledGameDataDependents().length > 0) return;
-
-        const gameDataSetting = HSSettings.getSetting('useGameData');
-        if (gameDataSetting?.isEnabled()) {
-            HSLogger.info('No enabled settings require GDS; turning GDS off.', this.context);
-            gameDataSetting.disable();
+        for (const setting of dependents) {
+            setting.disable();
         }
     }
 
@@ -164,7 +140,6 @@ export abstract class HSSetting<T extends HSSettingType> {
         }
 
         await this.handleSettingAction('state', newState);
-        this.#disableGameDataIfUnused();
 
         // Persist the changed enabled state to storage so UI toggles stick
         HSSettings.saveSettingsToStorage();
@@ -206,12 +181,8 @@ export abstract class HSSetting<T extends HSSettingType> {
             }
         }
 
-        void this.handleSettingAction('state', newState).then(
-            () => this.#disableGameDataIfUnused(),
-            (error) => {
-                HSLogger.error(`Setting action failed for ${this.definition.settingName}: ${error}`, this.context);
-                this.#disableGameDataIfUnused();
-            }
+        void this.handleSettingAction('state', newState).catch(
+            (error) => HSLogger.error(`Setting action failed for ${this.definition.settingName}: ${error}`, this.context)
         );
         HSSettings.saveSettingsToStorage();
     }

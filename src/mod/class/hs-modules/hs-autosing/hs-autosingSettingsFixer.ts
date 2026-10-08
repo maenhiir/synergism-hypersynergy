@@ -3,6 +3,7 @@ import { HSSettings } from "../../hs-core/settings/hs-settings";
 import { HSSettingsDefinition } from '../../../types/module-types/hs-settings-types';
 import { HSGameState } from '../../hs-core/hs-gamestate';
 import { HSModuleManager } from '../../hs-core/module/hs-module-manager';
+import type { HSGameData } from '../../hs-core/gds/hs-gamedata';
 import { HSAmbrosiaHelper } from '../hs-ambrosiaHelper';
 import { HSUtils } from '../../hs-utils/hs-utils';
 import { HSGlobal } from '../../hs-core/hs-global';
@@ -16,6 +17,8 @@ import { PlayerData } from '../../../types/data-types/hs-player-savedata';
  */
 export class HSAutosingSettingsFixer {
     static readonly #context = 'HSAutosingSettingsFixer';
+    // Pause taken on the GDS engine for the duration of autosing
+    static readonly GDS_PAUSE_REASON = 'autosing';
 
     /**
      * List of toggle requirements: selector and expected text.
@@ -454,12 +457,15 @@ export class HSAutosingSettingsFixer {
     }
 
     static async #disableUnwantedSettings(): Promise<string[]> {
+        // GDS: only its engine is paused, the setting is kept, so a reload during autosing can't
+        // leave GDS turned off. Released by stopAutosing().
+        await HSModuleManager.getModule<HSGameData>('HSGameData')?.pauseGDS(HSAutosingSettingsFixer.GDS_PAUSE_REASON);
+
         const performanceSettingKeys = [
             'enableCorruptionQuickBar',
             'enableAutomationQuickBar',
             'ambrosiaMinibars',
             // RETIRED: 'ambrosiaIdleSwap',
-            'useGameData'
         ] as const;
 
         const disabledSettings: string[] = [];
@@ -498,7 +504,7 @@ export class HSAutosingSettingsFixer {
     }
 
     public static restoreUnwantedSettings(settingsToRestore: string[]): void {
-        // Reverse order to re-enable GDS first.
+        // Reverse order of disabling. GDS is not in the list: stopAutosing() resumes it before this.
         // Keys prefixed with '+' were enabled by autosing and must be disabled on restore.
         for (let i = settingsToRestore.length - 1; i >= 0; i--) {
             const raw = settingsToRestore[i];

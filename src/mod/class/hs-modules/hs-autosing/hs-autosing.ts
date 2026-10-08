@@ -1,6 +1,7 @@
 import Decimal from "break_infinity.js";
 import { HSModuleManager } from "../../hs-core/module/hs-module-manager";
 import { HSGameDataAPI } from "../../hs-core/gds/hs-gamedata-api";
+import type { HSGameData } from "../../hs-core/gds/hs-gamedata";
 import { HSModule } from "../../hs-core/module/hs-module";
 import { HSLogger } from "../../hs-core/hs-logger";
 import { HSUI } from "../../hs-core/hs-ui";
@@ -53,6 +54,12 @@ export class HSAutosing extends HSModule {
 
     #strategy?: HSAutosingStrategy;
     #autosingEnabled = false;
+    #isStarting = false;
+    // Set by stopAutosing() during a start: the start stops at its next checkpoint
+    #startCancelled = false;
+    // Start requested while a cancelled start was still running: started once it has ended
+    #startRequestedAgain = false;
+    #restartTimer?: number;
     #targetSingularity = 0;
     #prevActionTime: number = 0;
     #stopAtSingularitysEnd: boolean = false;
@@ -488,24 +495,78 @@ export class HSAutosing extends HSModule {
     // ============================================================================
 
     async enableAutoSing(): Promise<void> {
+        // Already running: e.g. the start toggle synced by a restart (see #startAutosing())
+        if (this.#autosingEnabled) return;
+        if (this.#isStarting) {
+            // Stopped then started again during the same start: the toggle is ON again,
+            // so start anew once the cancelled start has ended
+            if (this.#startCancelled) this.#startRequestedAgain = true;
+            return;
+        }
+
+        this.#isStarting = true;
+        this.#startCancelled = false;
+        try {
+            await this.#startAutosing();
+        } catch (error) {
+            HSLogger.warn(`Error while starting autosing: ${error instanceof Error ? error.message : String(error)}`, this.context);
+            this.stopAutosing();
+        } finally {
+            this.#isStarting = false;
+        }
+
+        if (this.#startRequestedAgain) {
+            this.#startRequestedAgain = false;
+            void this.enableAutoSing();
+        }
+    }
+
+    /**
+     * Checkpoint for a start stopped by stopAutosing() before it was marked as running.
+     * stopAutosing() already turned the toggle off and restored what was changed at that time:
+     * this restores what the start changed since (settings fixer, GDS pause).
+     */
+    #isStartCancelled(): boolean {
+        if (!this.#startCancelled) return false;
+        HSLogger.log(`Autosing start cancelled.`, this.context);
+        this.#restoreHsSettings();
+        return true;
+    }
+
+    // Every failed start goes through stopAutosing(), which turns the start toggle back off
+    async #startAutosing(): Promise<void> {
         if (!await this.cacheAlmostEverything()) { this.stopAutosing(); return; }
+        if (this.#isStartCancelled()) return;
 
         this.#autosingModal?.destroy();
         this.#autosingModal = new HSAutosingModal();
         const strategy = await this.#loadStrategy();
         if (!strategy) { this.stopAutosing(); return; }
+        if (this.#isStartCancelled()) return;
 
         this.#strategy = strategy;
         this.#rebuildStrategyPhaseCaches();
         this.#corruptionManager.buildLoadoutCache(strategy.corruptionLoadouts ?? []);
 
-        if (!HSGlobal.General.isModFullyLoaded) { HSLogger.debug(() => "Hypersynergism is still loading. Please wait before starting Auto-Sing.", this.context); return; }
-        if (this.#isInExalt()) { HSLogger.debug(() => "Cannot start Auto-Sing while inside a singularity challenge.", this.context); return; }
+        if (!HSGlobal.General.isModFullyLoaded) {
+            HSLogger.debug(() => "Hypersynergism is still loading. Please wait before starting Auto-Sing.", this.context);
+            this.stopAutosing();
+            return;
+        }
+        if (this.#isInExalt()) {
+            HSLogger.debug(() => "Cannot start Auto-Sing while inside a singularity challenge.", this.context);
+            HSUI.Notify("Cannot start Auto-Sing while inside a singularity challenge", { notificationType: 'warning' });
+            this.stopAutosing();
+            return;
+        }
 
-        // This needs to be done before cacheExposedFunctions since it enables __HS_AUTO_CONFIRM
-        this.#hsSettingsToRestore = await HSAutosingSettingsFixer.fixAllSettings();
+        // This needs to be done before cacheExposedFunctions since it enables __HS_AUTO_CONFIRM.
+        // Appended: after a restart, the list still holds what the previous run changed (kept changed meanwhile)
+        this.#hsSettingsToRestore = [...this.#hsSettingsToRestore, ...await HSAutosingSettingsFixer.fixAllSettings()];
+        if (this.#isStartCancelled()) return;
         this.#cacheObservers();
         await this.#cacheExposedFunctions();
+        if (this.#isStartCancelled()) return;
 
         this.#autosingEnabled = true;
         this.#stopAtSingularitysEnd = false;
@@ -516,7 +577,13 @@ export class HSAutosing extends HSModule {
         this.#storedC15 = 0;
         this.#lastBookmarkC15Score = HSAutosing.#DECIMAL_0;
 
+        // The toggle can be OFF here: Restart pressed in review mode, after a stop. Its action
+        // calls enableAutoSing(), which returns at once since autosing is now running.
+        HSSettings.getSetting("startAutosing")?.enable();
+
         if (!await this.#validateAutosingSetupAndRequirements()) { this.stopAutosing(); return; }
+        // Stopped during validation: the normal stop already ran
+        if (!this.#autosingEnabled) return;
 
         if (!(HSSettings.getSetting("showDebugLogs")?.isEnabled() ?? false)) {
             HSGlobal.HSLogger.logLevel = ELogLevel.NONE;
@@ -527,23 +594,63 @@ export class HSAutosing extends HSModule {
 
     public async restartAutosing(): Promise<void> {
         if (this.#autosingEnabled) {
-            this.stopAutosing();
+            this.stopAutosing({ restarting: true });
         }
-        window.setTimeout(() => this.enableAutoSing(), 500);
+        // Stored so a stop during the delay cancels the restart
+        window.clearTimeout(this.#restartTimer);
+        this.#restartTimer = window.setTimeout(() => {
+            this.#restartTimer = undefined;
+            void this.enableAutoSing();
+        }, 500);
     }
 
-    public stopAutosing(options?: { showReviewModal?: boolean }): void {
+    /**
+     * @param options.restarting Keeps the start toggle ON, GDS paused and the mod settings as autosing
+     * set them, for the next start. A stop or a failed start restores them.
+     */
+    public stopAutosing(options?: { showReviewModal?: boolean, restarting?: boolean }): void {
         HSGlobal.HSLogger.logLevel = ELogLevel.ALL;
 
-        if (!this.#autosingEnabled) return;
+        window.clearTimeout(this.#restartTimer);
+        this.#restartTimer = undefined;
+        if (this.#isStarting) {
+            // Also when it's already marked as running (stopped during validation),
+            // so that a new start request isn't ignored
+            this.#startCancelled = true;
+            this.#startRequestedAgain = false;
+        }
+
+        if (!this.#autosingEnabled) {
+            // A failed start stops it before it's marked as running: the start toggle is still ON,
+            // and the settings may already be changed and GDS paused
+            this.#disableStartToggle();
+            this.#restoreHsSettings();
+            return;
+        }
         void this.#stopAutosingCore({ modalDisposition: options?.showReviewModal ? 'review' : 'destroy' });
 
+        if (options?.restarting) {
+            HSLogger.log(`Autosing stopped for a restart.`, this.context);
+            return;
+        }
+        this.#disableStartToggle();
+        this.#restoreHsSettings();
+        HSLogger.log(`Autosing stopped.`, this.context);
+    }
+
+    #disableStartToggle(): void {
         const autosingSetting = HSSettings.getSetting("startAutosing");
         if (autosingSetting && autosingSetting.isEnabled()) {
             autosingSetting.disable();
         }
+    }
+
+    /** Resumes the GDS engine and restores the mod settings changed by HSAutosingSettingsFixer. */
+    #restoreHsSettings(): void {
+        void HSModuleManager.getModule<HSGameData>('HSGameData')?.resumeGDS(HSAutosingSettingsFixer.GDS_PAUSE_REASON);
         HSAutosingSettingsFixer.restoreUnwantedSettings(this.#hsSettingsToRestore);
-        HSLogger.log(`Autosing stopped.`, this.context);
+        // Cleared so a later stop can't restore them a second time
+        this.#hsSettingsToRestore = [];
     }
 
     async #stopAutosingCore(options: { modalDisposition: 'review' | 'destroy' }): Promise<void> {
@@ -1590,6 +1697,13 @@ export class HSAutosing extends HSModule {
 
     isAutosingEnabled(): boolean {
         return this.#autosingEnabled;
+    }
+
+    /** Running, starting (not cancelled yet), or waiting to restart. */
+    isAutosingActive(): boolean {
+        return this.#autosingEnabled
+            || (this.#isStarting && !this.#startCancelled)
+            || this.#restartTimer !== undefined;
     }
 
     setStopAtSingularitysEnd(value: boolean): void {

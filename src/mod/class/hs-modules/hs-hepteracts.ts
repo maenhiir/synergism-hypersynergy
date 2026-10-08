@@ -11,6 +11,7 @@ import { HSUI } from "../hs-core/hs-ui";
 import { HSUtils } from "../hs-utils/hs-utils";
 import { HSModuleOptions } from "../../types/hs-types";
 import { HSGameDataAPI } from "../hs-core/gds/hs-gamedata-api";
+import type { HSGameData } from "../hs-core/gds/hs-gamedata";
 import { parseGameDataNumber } from "../hs-core/gds/hs-gamedata-utils";
 
 type AscensionIncomeSnapshot = {
@@ -194,9 +195,10 @@ export class HSHepteracts extends HSModule {
         this.#forgeCapacityRefreshPromise = undefined;
 
         const gameDataAPI = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI');
-        const useGameDataSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
+        // Cached data is only current while the GDS engine runs (it can be paused with the setting ON)
+        const isGDSRunning = HSModuleManager.getModule<HSGameData>('HSGameData')?.isGDSRunning() ?? false;
 
-        if (useGameDataSetting.isEnabled()) {
+        if (isGDSRunning) {
             if (gameDataAPI?.getGameData()) {
                 this.#hasDoubleHepteractCapacity = Boolean(
                     gameDataAPI.getSingularityChallengeEffect('limitedAscensions', 'hepteractCap')

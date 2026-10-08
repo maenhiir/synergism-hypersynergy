@@ -1021,8 +1021,7 @@ export class HSAmbrosia extends HSModule
         this.#ensureBarIncomeElements();
         await this.#attachAmbrosiaTabEvents();
         this.subscribeGameDataChanges();
-        const useGameDataSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
-        void this.#queueBarIncomeRefresh(!useGameDataSetting.isEnabled());
+        void this.#queueBarIncomeRefresh(!this.#isGDSRunning());
 
         // RETIRED: Ambrosia AFK/idle swapper activation on tab entry.
         // if (this.#isIdleSwapEnabled) {
@@ -1073,6 +1072,11 @@ export class HSAmbrosia extends HSModule
         this.#blueIncomeElement = ensureElement('ambrosiaDisplay', 'hs-ambrosia-expected-hourly');
         this.#redIncomeElement = ensureElement('redAmbrosiaDisplay', 'hs-red-ambrosia-expected-hourly');
         this.#purpleIncomeElement = ensureElement('purpleAmbrosiaDisplay', 'hs-purple-ambrosia-expected-hourly');
+    }
+
+    // Cached game data is only current while the GDS engine runs (it can be paused with the setting ON)
+    #isGDSRunning(): boolean {
+        return HSModuleManager.getModule<HSGameData>('HSGameData')?.isGDSRunning() ?? false;
     }
 
     #queueBarIncomeRefresh(forceRefresh: boolean): Promise<void> {
@@ -1169,8 +1173,7 @@ export class HSAmbrosia extends HSModule
 
         this.#barIncomeRefreshTimer = setTimeout(() => {
             this.#barIncomeRefreshTimer = undefined;
-            const useGameDataSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
-            void this.#queueBarIncomeRefresh(!useGameDataSetting.isEnabled());
+            void this.#queueBarIncomeRefresh(!this.#isGDSRunning());
         }, 10_000);
     }
 

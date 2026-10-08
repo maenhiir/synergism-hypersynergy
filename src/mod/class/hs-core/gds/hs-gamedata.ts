@@ -49,6 +49,15 @@ export class HSGameData extends HSModule {
 
     // --- Turbo Mode & Intervals ---
     #gdsEnabled = false;
+    // Reasons the engine is paused (autosing, save import...) while the GDS setting may stay ON.
+    // The engine only runs when no pause is left and the setting is ON.
+    #enginePauses = new Set<string>();
+    #importPauseSequence = 0;
+    // Ends the "Load from file" import still waiting for its save, if any
+    #abortPendingImport?: () => void;
+    // Bumped by disableGDS(): a start begun under an older generation is cancelled
+    #engineGeneration = 0;
+    #engineStart?: { generation: number, promise: Promise<void> };
     #gdsCSS = `
         #savegame {
             font-size: 0;
@@ -605,25 +614,74 @@ export class HSGameData extends HSModule {
     // --- GDS (Game Data Sniffing) Control ---
 
     /**
+     * Whether the GDS engine is currently running, i.e. the cached game data is kept up to date.
+     * Can be false while the GDS setting is ON (engine paused by autosing or a save import).
+     */
+    isGDSRunning(): boolean {
+        return this.#gdsEnabled;
+    }
+
+    /**
+     * Pauses the GDS engine without touching the GDS setting, so the setting can't be left OFF
+     * if the pause is never released (reload, crash...). The engine stays stopped until every
+     * pause is released.
+     * @param reason Identifies the pause, released by resumeGDS() with the same value.
+     */
+    async pauseGDS(reason: string): Promise<void> {
+        this.#enginePauses.add(reason);
+        HSLogger.debug(() => `GDS paused (${reason})`, this.context);
+        if (this.#gdsEnabled) await this.disableGDS();
+    }
+
+    /**
+     * Releases a pause taken by pauseGDS(). Restarts the engine when no pause is left
+     * and the GDS setting is ON.
+     * @param reason The value given to pauseGDS().
+     * @returns true when the engine was restarted.
+     */
+    async resumeGDS(reason: string): Promise<boolean> {
+        if (!this.#enginePauses.delete(reason)) return false;
+        HSLogger.debug(() => `GDS pause released (${reason})`, this.context);
+        if (this.#enginePauses.size > 0) return false;
+        if (!(HSSettings.getSetting('useGameData')?.isEnabled() ?? false)) return false;
+
+        await this.enableGDS();
+        return this.#gdsEnabled;
+    }
+
+    /**
      * Enables Game Data Sniffing (GDS) mode, sets up intervals, hooks DOM elements,
      * and starts save processing. Handles turbo mode and experimental GDS.
+     * Does nothing while the engine is paused (see pauseGDS()).
      * @returns Promise<void>
      */
     async enableGDS() {
+        if (this.#gdsEnabled) return;
+        if (this.#enginePauses.size > 0) {
+            HSLogger.debug(() => `GDS start deferred, paused by: ${[...this.#enginePauses].join(', ')}`, this.context);
+            return;
+        }
+
+        // Concurrent callers share one start, so the intervals are never installed twice.
+        // A start cancelled by disableGDS() isn't shared: it ends by itself without starting anything.
+        if (this.#engineStart?.generation !== this.#engineGeneration) {
+            const start = {
+                generation: this.#engineGeneration,
+                promise: this.#startEngine(this.#engineGeneration).finally(() => {
+                    if (this.#engineStart === start) this.#engineStart = undefined;
+                })
+            };
+            this.#engineStart = start;
+        }
+        return this.#engineStart.promise;
+    }
+
+    async #startEngine(generation: number) {
         const self = this;
 
-        if (this.#gdsEnabled) return;
-
-        HSUI.injectStyle(this.#gdsCSS, HSGlobal.HSGameData.gdsCSSId);
-
-        if (this.#saveInterval) clearInterval(this.#saveInterval);
-
+        // Every wait happens before anything is installed: the start can be cancelled meanwhile
+        // (refreshFetchedData() waits on the network, possibly for seconds)
         await this.#refreshFetchedData();
-
-        if (this.#fetchedDataRefreshInterval)
-            clearInterval(this.#fetchedDataRefreshInterval);
-
-        this.#fetchedDataRefreshInterval = setInterval(() => { self.#refreshFetchedData(); }, HSGlobal.HSGameData.fetchedDataRefreshInterval);
 
         if (!this.#manualSaveButton) {
             this.#manualSaveButton = await HSElementHooker.HookElement('#savegame') as HTMLButtonElement;
@@ -633,14 +691,26 @@ export class HSGameData extends HSModule {
             this.#saveinfoElement = await HSElementHooker.HookElement('#saveinfo') as HTMLParagraphElement;
         }
 
+        if (!this.#singularityButton)
+            this.#singularityButton = await HSElementHooker.HookElement('#singularitybtn') as HTMLImageElement;
+
+        // Cancelled while waiting by disableGDS() or pauseGDS() (e.g. GDS turned off, autosing started)
+        if (generation !== this.#engineGeneration || this.#enginePauses.size > 0 || this.#gdsEnabled) {
+            HSLogger.debug(() => `GDS start cancelled`, this.context);
+            return;
+        }
+
+        HSUI.injectStyle(this.#gdsCSS, HSGlobal.HSGameData.gdsCSSId);
+        if (this.#saveInterval) clearInterval(this.#saveInterval);
+        if (this.#fetchedDataRefreshInterval) clearInterval(this.#fetchedDataRefreshInterval);
+
+        this.#fetchedDataRefreshInterval = setInterval(() => { self.#refreshFetchedData(); }, HSGlobal.HSGameData.fetchedDataRefreshInterval);
+
         this.#saveInterval = setInterval(() => {
             if (this.#manualSaveButton && this.#saveinfoElement && this.#saveTriggerEvent) {
                 this.#manualSaveButton.dispatchEvent(this.#saveTriggerEvent);
             }
         }, HSGlobal.HSGameData.gdsSpeedMs)
-
-        if (!this.#singularityButton)
-            this.#singularityButton = await HSElementHooker.HookElement('#singularitybtn') as HTMLImageElement;
 
         this.#singularityChallengeButtons ||= Array.from(document.querySelectorAll('#singularityChallenges > div.singularityChallenges > div'));
 
@@ -682,6 +752,9 @@ export class HSGameData extends HSModule {
      */
     async disableGDS() {
         const self = this;
+
+        // Cancels a start still waiting in #startEngine()
+        this.#engineGeneration++;
 
         if (this.#saveInterval) {
             clearInterval(this.#saveInterval);
@@ -818,31 +891,48 @@ export class HSGameData extends HSModule {
     }
 
     /**
-     * Handles save file import, disables GDS and autosing if active,
+     * Handles save file import: pauses the GDS engine and stops autosing if active,
      * watches for offline container visibility, restores active ambrosia loadout,
-     * and restores GDS state after import.
+     * then brings the GDS engine back in line with the GDS setting.
+     * The GDS setting itself is never changed here, so a cancelled or failed import
+     * can't leave GDS turned off.
      * @param e MouseEvent from the import button click.
      * @returns Promise<void>
      */
     async #loadFromFileHandler(e: MouseEvent) {
         this.#mitm_atob_data = undefined; // Clear stale save data
         const gameDataSetting = HSSettings.getSetting("useGameData") as HSSetting<boolean>;
+        const isGdsSettingEnabled = () => gameDataSetting?.isEnabled() ?? false;
+        // Shown as paused when the setting is ON, even if autosing had already paused the engine
+        const announcePause = isGdsSettingEnabled();
+        // Ends the "GDS paused" notification shown below, only when one was shown
+        const notifyResumed = (reason: string) => {
+            if (!announcePause) return;
+            HSUI.Notify(`GDS resumed (${reason})`, { position: 'top', notificationType: 'success' });
+        };
 
-        // Capture state BEFORE we potentially change it
-        // If GDS is disabled, this will be false, so the Flash GDS logic will correctly "Flash" it (Enable -> Clean -> Disable)
-        this.#wasUsingGDS = gameDataSetting ? gameDataSetting.isEnabled() : false;
+        // An older click still waiting (e.g. no event came back from its dialog) is ended here.
+        // Each click gets its own pause, so an older click can't release a newer one.
+        this.#abortPendingImport?.();
+        const pauseReason = `import-${++this.#importPauseSequence}`;
+        // Taken before stopping autosing, so autosing releasing its own pause doesn't restart the engine
+        await this.pauseGDS(pauseReason);
 
-        if (gameDataSetting && gameDataSetting.isEnabled()) {
-            gameDataSetting.disable({ preserveGameDataDependents: true });
+        // Autosing can't go on with another save, whatever the GDS state
+        const autosing = HSModuleManager.getModule<HSAutosing>('HSAutosing');
+        // Also a start in progress or a pending restart, which would run on the imported save
+        const stopsAutosing = autosing?.isAutosingActive() ?? false;
+        if (stopsAutosing) {
+            HSLogger.log("Load from file clicked - Stopping Auto-Sing", this.context);
+            autosing!.stopAutosing();
+        }
 
-            const autosing = HSModuleManager.getModule<HSAutosing>('HSAutosing');
-            if (autosing && autosing.isAutosingEnabled()) {
-                HSLogger.log("Load from file clicked - Stopping Auto-Sing (GDS)", this.context);
-                autosing.stopAutosing();
-                HSUI.Notify("Auto-Sing stopped and GDS disabled for save file import", { position: 'top', notificationType: 'warning' });
-            } else {
-                HSUI.Notify('GDS has been disabled for save file import', { position: 'top', notificationType: 'warning' });
-            }
+        if (stopsAutosing && announcePause) {
+            HSUI.Notify("Auto-Sing stopped and GDS paused for save file import", { position: 'top', notificationType: 'warning' });
+        } else if (stopsAutosing) {
+            HSUI.Notify("Auto-Sing stopped for save file import", { position: 'top', notificationType: 'warning' });
+        } else if (announcePause) {
+            HSUI.Notify('GDS paused for save file import', { position: 'top', notificationType: 'warning' });
         }
 
         // Always run the detection/cleanup logic, regardless of previous GDS state
@@ -850,20 +940,25 @@ export class HSGameData extends HSModule {
         const offlineContainer = await HSElementHooker.HookElement('#offlineContainer') as HTMLDivElement;
         const self = this;
         let watcherStopped = false;
+        // Set below, once the dialog listeners exist
+        let stopWaitingForLoad = () => { };
 
         const watcherId = HSElementHooker.watchElement(offlineContainer, async (viewState: { view: string, state: string }) => {
             if (viewState.state !== 'none' && !watcherStopped) {
                 // IMMEDIATELY mark as stopped and disconnect to prevent multiple fires during lag
                 watcherStopped = true;
-                if (watcherId) {
-                    HSElementHooker.stopWatching(watcherId);
-                }
+                stopWaitingForLoad();
 
                 try {
                     HSLogger.log("Offline container visible - Save loaded (GDS)", self.context);
 
                     // Ensure GDS is enabled for UI sync - AWAIT it because it triggers CPU heavy refreshes
-                    await self.enableGDS();
+                    if (await self.resumeGDS(pauseReason)) {
+                        notifyResumed('save loaded');
+                    } else {
+                        // Setting OFF: run the engine briefly for the cleanup, stopped again below
+                        await self.enableGDS();
+                    }
 
                     const ambrosiaModule = HSModuleManager.getModule<HSAmbrosia>('HSAmbrosia');
                     if (ambrosiaModule) {
@@ -885,9 +980,11 @@ export class HSGameData extends HSModule {
                         HSLogger.debug(() => `No captured save data (mitm_atob_data is empty).`, self.context);
                     }
 
-                    if (!self.#wasUsingGDS) {
+                    if (!isGdsSettingEnabled()) {
                         // Wait for game state to settle and cleanup to take effect, then restore OFF state
                         setTimeout(() => {
+                            // The player may have turned GDS on in the meantime
+                            if (isGdsSettingEnabled()) return;
                             self.disableGDS();
                             HSLogger.debug(() => "Cleanup done. GDS disabled (Restored state)", self.context);
                         }, 2000);
@@ -916,19 +1013,57 @@ export class HSGameData extends HSModule {
             }
         });
 
-        // Cleanup watcher if user cancels file dialog (focus returns to window)
-        const focusHandler = () => {
-            setTimeout(() => {
-                if (watcherId && !watcherStopped) {
-                    if (HSElementHooker.stopWatching(watcherId)) {
-                        HSLogger.log("GDS Save Load Watcher timed out (User likely cancelled)", self.context);
-                    }
-                    watcherStopped = true;
-                }
-            }, 5000);
-            window.removeEventListener('focus', focusHandler);
+        // --- No save loaded: dialog cancelled, or the game refused the file (it only shows an Alert) ---
+        const fileInput = document.getElementById('importfile') as HTMLInputElement | null;
+        let noLoadTimer: number | undefined;
+        let fileChosen = false;
+
+        const stopWaiting = () => {
+            watcherStopped = true;
+            window.clearTimeout(noLoadTimer);
+            fileInput?.removeEventListener('cancel', onCancel);
+            fileInput?.removeEventListener('change', onChange);
+            window.removeEventListener('focus', onFocus);
+            if (watcherId) HSElementHooker.stopWatching(watcherId);
+            if (self.#abortPendingImport === abortThisImport) self.#abortPendingImport = undefined;
         };
-        window.addEventListener('focus', focusHandler);
+        stopWaitingForLoad = stopWaiting;
+
+        const endWithoutLoad = (reason: string) => {
+            if (watcherStopped) return;
+            stopWaiting();
+            HSLogger.log(`Save file import ended without a save loaded (${reason})`, self.context);
+            void self.resumeGDS(pauseReason).then((resumed) => {
+                if (resumed) notifyResumed('no save loaded');
+            });
+        };
+
+        // Fired when the dialog is closed without choosing a file
+        const onCancel = () => endWithoutLoad('dialog cancelled');
+        // A file was chosen: the game reads it and shows the offline popup if it loads it
+        const onChange = () => {
+            fileChosen = true;
+            window.clearTimeout(noLoadTimer);
+            noLoadTimer = window.setTimeout(() => endWithoutLoad('file not loaded by the game'), 10_000);
+        };
+        // Fallback when 'cancel' isn't supported. 'change' may come just after 'focus', hence the long delay
+        const onFocus = () => {
+            window.removeEventListener('focus', onFocus);
+            if (fileChosen) return;
+            noLoadTimer = window.setTimeout(() => endWithoutLoad('dialog closed'), 10_000);
+        };
+
+        fileInput?.addEventListener('cancel', onCancel);
+        fileInput?.addEventListener('change', onChange);
+        window.addEventListener('focus', onFocus);
+
+        // A new click ends this import without resuming: the new click takes its own pause right after
+        const abortThisImport = () => {
+            if (watcherStopped) return;
+            stopWaiting();
+            this.#enginePauses.delete(pauseReason);
+        };
+        this.#abortPendingImport = abortThisImport;
     }
 
     // Not used anymore ? Useful to keep ?
