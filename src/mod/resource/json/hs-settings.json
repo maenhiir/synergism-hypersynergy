@@ -1460,6 +1460,13 @@
     "enabled": true,
     "hidden": true
   },
+  "gqDistributorKeepSkippedShare": {
+    "settingName": "gqDistributorKeepSkippedShare",
+    "settingDescription": "Keep the GQ share of skipped distributor upgrades unspent",
+    "settingType": "boolean",
+    "enabled": true,
+    "hidden": true
+  },
   "gqDistributorRatios": {
     "settingName": "gqDistributorRatios",
     "settingDescription": "GQ Distributor saved ratios",

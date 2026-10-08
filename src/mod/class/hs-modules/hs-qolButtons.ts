@@ -529,6 +529,22 @@ export class HSQOLButtons extends HSModule {
         balanceLabel.appendChild(balanceText);
         distributor.appendChild(balanceLabel);
 
+        const keepSkippedLabel = document.createElement('label');
+        keepSkippedLabel.style.marginTop = '4px';
+        keepSkippedLabel.title = 'On: the GQ share of skipped upgrades (maxed, or next level too expensive) stays unspent. Off: it is shared between the other upgrades.';
+        const keepSkippedShare = document.createElement('input');
+        keepSkippedShare.id = 'hs-gq-keep-skipped-share';
+        keepSkippedShare.type = 'checkbox';
+        keepSkippedShare.checked = HSSettings.getSetting('gqDistributorKeepSkippedShare').getValue() === true;
+        keepSkippedShare.addEventListener('change', () => {
+            HSSettings.getSetting('gqDistributorKeepSkippedShare').setValue(keepSkippedShare.checked);
+        });
+        keepSkippedLabel.appendChild(keepSkippedShare);
+        const keepSkippedText = document.createElement('span');
+        keepSkippedText.textContent = ' Keep the share of skipped upgrades';
+        keepSkippedLabel.appendChild(keepSkippedText);
+        distributor.appendChild(keepSkippedLabel);
+
         const syncInvestedRatios = (data: GameData): boolean => {
             const investments = Object.keys(inputs).map(id => ({
                 id, invested: Math.max(0, data.goldenQuarkUpgrades[id as GoldenQuarkUpgradeKey]?.goldenQuarksInvested ?? 0)
@@ -545,7 +561,7 @@ export class HSQOLButtons extends HSModule {
         };
 
         matchRatios.addEventListener('click', async () => {
-            distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = true;
+            distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = keepSkippedShare.disabled = true;
             try {
                 const data = await HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.getForcedGameData();
                 if (!data) throw new Error('Player save unavailable.');
@@ -554,7 +570,7 @@ export class HSQOLButtons extends HSModule {
                 HSLogger.warn(`Could not match invested GQ ratios: ${error}`, this.context);
                 setStatus('Could not read your current save. Try again.');
             } finally {
-                distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = false;
+                distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = keepSkippedShare.disabled = false;
             }
         });
 
@@ -597,7 +613,7 @@ export class HSQOLButtons extends HSModule {
                 return;
             }
 
-            distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = true;
+            distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = keepSkippedShare.disabled = true;
             distributeBtn.style.opacity = '0.6';
             distributeBtn.style.cursor = 'not-allowed';
             try {
@@ -615,13 +631,13 @@ export class HSQOLButtons extends HSModule {
                     if (Number.isFinite(val) && val > 0) ratios[id] = val;
                 }
 
-                // Drop the upgrades the game would refuse with an alert instead of the purchase dialog:
+                // Skip the upgrades the game would refuse with an alert instead of the purchase dialog:
                 // maxed since the list was built (e.g. a previous distribution), or next level costing
                 // more than the whole balance. With auto-confirm on (autosing), that alert never shows.
-                // Their share goes to the other upgrades.
+                // Their share goes to the other upgrades, or stays unspent with "Keep the share of skipped upgrades".
                 const gqHelper = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.goldenQuark;
                 const skipped: string[] = [];
-                const ids = Object.keys(ratios).filter((id) => {
+                const buyableIds = Object.keys(ratios).filter((id) => {
                     if (!gqHelper) return true;
                     const key = id as GoldenQuarkUpgradeKey;
                     const level = gqHelper.getGQUpgradeLevel(key);
@@ -637,10 +653,15 @@ export class HSQOLButtons extends HSModule {
                     }
                     return true;
                 });
-                if (ids.length === 0) {
+                if (buyableIds.length === 0) {
                     if (skipped.length > 0) setStatus(`Nothing to buy. Skipped: ${skipped.join(', ')}`);
                     return;
                 }
+                // Keeping their share: skipped upgrades still take part in the allocation (so the others
+                // get the same share as if they were buyable), then their own share is not spent.
+                const keepSkipped = keepSkippedShare.checked;
+                const buyable = new Set(buyableIds);
+                const ids = keepSkipped ? Object.keys(ratios) : buyableIds;
                 const gqBudget = Math.max(0, Math.floor(totalGQ));
                 const weightEntries = ids.map((id) => {
                     const weight = ratios[id] ?? 0;
@@ -711,7 +732,7 @@ export class HSQOLButtons extends HSModule {
                 }
 
                 const plannedSpendById = new Map<string, number>(
-                    exactAdditional.map(entry => [entry.id, entry.floorAdditional])
+                    exactAdditional.map(entry => [entry.id, buyable.has(entry.id) ? entry.floorAdditional : 0])
                 );
                 const plannedTotal = ids.reduce((sum, id) => sum + (plannedSpendById.get(id) ?? 0), 0);
 
@@ -728,12 +749,12 @@ export class HSQOLButtons extends HSModule {
                 );
 
                 let current = 0;
-                for (const id of ids) {
+                for (const id of buyableIds) {
                     current++;
                     const amountToSpend = plannedSpendById.get(id) ?? 0;
-                    setStatus(`Buying ${current}/${ids.length} — spending ${amountToSpend.toLocaleString()} GQ…`);
+                    setStatus(`Buying ${current}/${buyableIds.length} — spending ${amountToSpend.toLocaleString()} GQ…`);
 
-                    if (amountToSpend <= 0) { setStatus(`Skipped ${current}/${ids.length} (0 GQ)`); continue; }
+                    if (amountToSpend <= 0) { setStatus(`Skipped ${current}/${buyableIds.length} (0 GQ)`); continue; }
 
                     const btn = document.getElementById(id) as HTMLButtonElement;
                     if (!btn) continue;
@@ -742,10 +763,9 @@ export class HSQOLButtons extends HSModule {
                     try {
                         await waitForPurchaseDialog();
                     } catch {
-                        // Safety net: skip this upgrade instead of stopping the whole distribution
-                        // (e.g. a game alert resolved silently by auto-confirm during autosing)
-                        HSLogger.warn(`GQ distribution: no purchase dialog for ${id}, skipped`, this.context);
-                        skipped.push(`${id} (no dialog)`);
+                        // Unbuyable upgrades are filtered out beforehand: a missing dialog is unexpected,
+                        // so stop the whole distribution here and name the upgrade (the outer catch reports it)
+                        throw new Error(`Purchase dialog did not open for ${id}.`);
                     }
 
                     if (purchaseWrapper.style.display === 'block') {
@@ -755,7 +775,7 @@ export class HSQOLButtons extends HSModule {
                         if (okPurchase.disabled) {
                             cancelPurchase.click();
                             skipped.push(`${id} (allocation cannot buy a level)`);
-                            setStatus(`Skipped ${current}/${ids.length} (allocation cannot buy a level)`);
+                            setStatus(`Skipped ${current}/${buyableIds.length} (allocation cannot buy a level)`);
                         } else {
                             okPurchase.click();
                         }
@@ -775,7 +795,7 @@ export class HSQOLButtons extends HSModule {
                     btn.blur();
                 }
                 if (skipped.length > 0) {
-                    setStatus(`Done. Skipped: ${skipped.join(', ')}`, 60000);
+                    setStatus(`Done. Skipped${keepSkipped ? ' (their share was kept)' : ''}: ${skipped.join(', ')}`, 60000);
                 } else {
                     setStatus('Done!', 3000);
                 }
@@ -783,7 +803,7 @@ export class HSQOLButtons extends HSModule {
                 HSLogger.warn(`GQ distribution failed: ${error}`, this.context);
                 setStatus(`Distribution stopped: ${error instanceof Error ? error.message : 'purchase failed.'}`);
             } finally {
-                distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = false;
+                distributeBtn.disabled = matchRatios.disabled = resetRatios.disabled = balanceInvestments.disabled = keepSkippedShare.disabled = false;
                 distributeBtn.style.opacity = '';
                 distributeBtn.style.cursor = 'pointer';
             }
