@@ -103,7 +103,20 @@ const purgeFiles = [
     { file: 'src/loader/hypersynergism.user.js' },
     { file: 'src/loader/tampermonkey-bridge.user.js' },
 ];
-const purgePathFor = (file) => `/gh/Ferlieloi/synergism-hypersynergy@master/${file}`;
+/**
+ * The GitHub repository releases are pushed to (from the `origin` remote), e.g. "Ferlieloi/synergism-hypersynergy"
+ * for the dev fork, or '' if it can't be identified. No fallback: purging another repository's files is useless,
+ * since only the repository just pushed to has new files.
+ */
+function getOriginRepo() {
+    const r = run('git', ['remote', 'get-url', 'origin']);
+    const url = r.status === 0 && !r.error ? String(r.stdout).trim() : '';
+    // https://github.com/OWNER/REPO(.git) or git@github.com:OWNER/REPO(.git)
+    const match = url.match(/github\.com[/:]([^/]+)\/([^/]+?)(?:\.git)?\/?$/);
+    return match ? `${match[1]}/${match[2]}` : '';
+}
+const purgeRepo = getOriginRepo();
+const purgePathFor = (file) => `/gh/${purgeRepo}@master/${file}`;
 const purgeUrlFor = (purgePath) => `https://purge.jsdelivr.net${purgePath}`;
 
 const argv = process.argv.slice(2);
@@ -745,9 +758,14 @@ async function purgeModCache(status) {
         return;
     }
 
+    if (!purgeRepo) {
+        warn('Skipping jsDelivr purge: the `origin` remote is not a GitHub repository URL, so the pushed repository is unknown.');
+        return;
+    }
+
     const purgePaths = getPurgePaths(status);
     const fileList = purgePaths.map(purgePath => purgePath.split('@master/')[1]).join(', ');
-    if (!await askYesNo(`Purge the jsDelivr cache for ${purgePaths.length} file(s) (${fileList})?`)) {
+    if (!await askYesNo(`Purge the jsDelivr cache of ${purgeRepo}@master for ${purgePaths.length} file(s) (${fileList})?`)) {
         info('jsDelivr purge skipped. Purge manually later if needed:');
         purgePaths.forEach(purgePath => info(`  ${purgeUrlFor(purgePath)}`));
         return;
