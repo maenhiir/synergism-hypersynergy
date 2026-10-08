@@ -1657,11 +1657,20 @@ export class HSAutosing extends HSModule {
 
     async #setAmbrosiaLoadout(loadout: HTMLButtonElement): Promise<void> {
         loadout.click();
-        await this.#waitForClassCondition(loadout, () => this.#isInAmbLoadout(loadout));
+        // The game marks the slot only if the load succeeded. It doesn't when the tree is rejected
+        // (its alert is silent under auto-confirm), so don't wait forever (even though that shouldn't happen...)
+        const loaded = await Promise.race([
+            this.#waitForClassCondition(loadout, () => this.#isInAmbLoadout(loadout)),
+            HSUtils.sleep(2000).then(() => false)
+        ]);
+        if (!loaded) {
+            HSLogger.warn(`Ambrosia loadout ${loadout.id} was not confirmed by the game (load rejected?)`, this.context);
+        }
     }
 
+    /** Whether the game marks this slot as the active loadout (set only after a successful load or save). */
     #isInAmbLoadout(loadout: HTMLButtonElement): boolean {
-        return loadout.classList.contains('hs-rainbow-border');
+        return loadout.classList.contains('activeBlueberryLoadout');
     }
 
     #isAllowedStage(stage: string): boolean {

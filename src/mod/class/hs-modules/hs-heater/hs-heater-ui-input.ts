@@ -2,6 +2,7 @@ import Decimal from "break_infinity.js";
 import { HSUIC } from "../../hs-core/hs-ui-components";
 import { HSSettings } from "../../hs-core/settings/hs-settings";
 import { HSIcons } from "../../hs-utils/hs-icons";
+import { HSUtils } from "../../hs-utils/hs-utils";
 import { escapeHtml } from "./hs-heater-utils";
 import { getEffectiveHeaterIconSrc, subscribeHeaterIconOverrideChanges, unsubscribeHeaterIconOverrideChanges, HeaterIconOverrideChangeListener } from "./hs-heater-icon-store";
 import { HSHeaterResultStore } from "./hs-heater-result-store";
@@ -298,7 +299,7 @@ export class HSHeaterUIInput {
 
         const iconSrc = getEffectiveHeaterIconSrc(select.value ?? '');
         if (iconSrc) {
-            icon.style.backgroundImage = `url('${iconSrc}')`;
+            icon.style.backgroundImage = HSUtils.cssUrl(iconSrc);
             icon.style.visibility = 'visible';
         } else {
             icon.style.backgroundImage = '';

@@ -184,6 +184,9 @@ export class HSAmbrosiaQuickbar {
 
         const cloneLoadoutButtons = clone.querySelectorAll(".blueberryLoadoutSlot") as NodeListOf<HTMLButtonElement>;
         cloneLoadoutButtons.forEach((button) => {
+            // Clones keep only our rainbow highlight (set by syncActiveSlot): a copied game class would
+            // stay frozen on the clone, styled by the game's CSS, while the real marker moves on.
+            button.classList.remove('activeBlueberryLoadout', 'hs-rainbow-border');
             const buttonId = button.id;
             if (!preserveIds) {
                 button.id = `${HSGlobal.HSAmbrosia.quickBarLoadoutIdPrefix}-${buttonId}`;
@@ -279,7 +282,7 @@ export class HSAmbrosiaQuickbar {
                 const customUrl = this.#getAmbrosiaSlotIcon(originalSlotId);
                 if (customUrl) {
                     slot.classList.add("hs-ambrosia-slot");
-                    slot.style.backgroundImage = `url(${customUrl})`;
+                    slot.style.backgroundImage = HSUtils.cssUrl(customUrl);
                 } else {
                     slot.classList.remove("hs-ambrosia-slot");
                     slot.style.backgroundImage = "";
@@ -294,7 +297,7 @@ export class HSAmbrosiaQuickbar {
                 const customUrl = this.#getAmbrosiaSlotIcon(slot.id);
                 if (customUrl) {
                     slot.classList.add("hs-ambrosia-slot");
-                    slot.style.backgroundImage = `url(${customUrl})`;
+                    slot.style.backgroundImage = HSUtils.cssUrl(customUrl);
                 } else {
                     slot.classList.remove("hs-ambrosia-slot");
                     slot.style.backgroundImage = "";
@@ -343,20 +346,13 @@ export class HSAmbrosiaQuickbar {
         return Array.from(loadoutContainer.querySelectorAll('.blueberryLoadoutSlot')) as HTMLButtonElement[];
     }
 
+    /**
+     * Highlight the active slot on the quickbar clones (rainbow border). The game's own loadout bar
+     * already highlights it with its activeBlueberryLoadout class, so it is left untouched.
+     */
     public syncActiveSlot(slotNumber: number): void {
-        const originalButtons = this.getCurrentOriginalLoadoutButtons();
-        originalButtons.forEach((button) => button.classList.remove('hs-rainbow-border'));
-
-        const originalTargetId = `blueberryLoadout${slotNumber}`;
-        const originalTarget = originalButtons.find((button) => button.id === originalTargetId);
-        if (originalTarget) {
-            originalTarget.classList.add('hs-rainbow-border');
-        } else {
-            HSLogger.warn(`No active slot found in original quickbar for slot ${slotNumber}`, this.context);
-        }
-
         const quickBar = this.getQuickbarElement();
-        if (!quickBar) { HSLogger.debug(() => 'Ambrosia quickbar not injected yet; original bar was synced only', this.context); return; }
+        if (!quickBar) { HSLogger.debug(() => 'Ambrosia quickbar not injected yet; nothing to sync', this.context); return; }
 
         const clonedSlots = quickBar.querySelectorAll('.blueberryLoadoutSlot');
         clonedSlots.forEach((slot) => slot.classList.remove('hs-rainbow-border'));

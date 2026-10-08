@@ -290,10 +290,17 @@ export class HSHeaterUIResult {
         const originalSlots = Array.from(slotsSource.querySelectorAll<HTMLElement>('.blueberryLoadoutSlot'));
         const cloneSlots = Array.from(clone.querySelectorAll<HTMLElement>('.blueberryLoadoutSlot'));
 
-        // Initial sync of hs-rainbow-border state from original to clone
-        originalSlots.forEach((orig, i) => {
-            cloneSlots[i]?.classList.toggle('hs-rainbow-border', orig.classList.contains('hs-rainbow-border'));
-        });
+        // Mirror the active-slot highlight and the custom slot icon (class + inline background image,
+        // set by the ambrosia quickbar on icon changes such as "Sync All Icons" or Alt+click)
+        const syncCloneSlot = (orig: HTMLElement, cloneSlot: HTMLElement | undefined) => {
+            if (!cloneSlot) return;
+            cloneSlot.classList.toggle('hs-rainbow-border', orig.classList.contains('hs-rainbow-border'));
+            cloneSlot.classList.toggle('hs-ambrosia-slot', orig.classList.contains('hs-ambrosia-slot'));
+            cloneSlot.style.backgroundImage = orig.style.backgroundImage;
+        };
+
+        // Initial sync from original to clone
+        originalSlots.forEach((orig, i) => syncCloneSlot(orig, cloneSlots[i]));
 
         // Click delegation: clone slot click → original slot click
         const onCloneClick = (event: Event) => {
@@ -305,18 +312,17 @@ export class HSHeaterUIResult {
         };
         clone.addEventListener('click', onCloneClick);
 
-        // MutationObserver: sync hs-rainbow-border from original slots to clone slots
+        // MutationObserver: keep the clone slots in sync with the original slots
         const observer = new MutationObserver((mutations) => {
             for (const mutation of mutations) {
-                if (mutation.attributeName !== 'class') continue;
                 const originalEl = mutation.target as HTMLElement;
                 const idx = originalSlots.indexOf(originalEl);
                 if (idx === -1) continue;
-                cloneSlots[idx]?.classList.toggle('hs-rainbow-border', originalEl.classList.contains('hs-rainbow-border'));
+                syncCloneSlot(originalEl, cloneSlots[idx]);
             }
         });
         originalSlots.forEach(slot => {
-            observer.observe(slot, { attributes: true, attributeFilter: ['class'] });
+            observer.observe(slot, { attributes: true, attributeFilter: ['class', 'style'] });
         });
 
         return () => {

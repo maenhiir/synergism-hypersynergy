@@ -49,6 +49,7 @@ export class HSAmbrosia extends HSModule
     #importBlueberriesInput: HTMLInputElement | null = null;
     #persistentAmbrosiaLevelsToggleButton: HTMLButtonElement | null = null;
     #loadoutContainerClickHandler?: (e: MouseEvent) => Promise<void>;
+    #gameActiveLoadoutObserver?: MutationObserver;
     #isLoadoutClickHandlerAttached = false;
     #persistentAmbrosiaLevelsToggleHandler?: (event: Event) => void;
     #isAmbrosiaTabActive = false;
@@ -164,6 +165,7 @@ export class HSAmbrosia extends HSModule
         await this.loadState();
 
         await this.quickbar.init();
+        this.#observeGameActiveLoadout();
 
         await this.#createPersistentMinibars();
 
@@ -252,14 +254,8 @@ export class HSAmbrosia extends HSModule
         const slotElement = (e.target as HTMLElement).closest('.blueberryLoadoutSlot') as HTMLButtonElement | null;
         if (!slotElement) return;
 
-        const slotElementId = slotElement.id;
-        const slotEnum = HSAmbrosiaHelper.getSlotEnumBySlotId(slotElementId);
-        if (!slotEnum) {
-            HSLogger.warn(`No slot enum found for slot ID: ${slotElementId}`, this.context);
-            return;
-        }
-
-        this.updateActiveLoadout(slotEnum);
+        // The active loadout itself is not set here anymore: #observeGameActiveLoadout follows the game's marker,
+        // which only moves when the load (or save) actually succeeded.
 
         // Programmatic slot clicks (quickbar, Add/Time codes, heater...) don't move the mouse,
         // so the hover handlers won't refresh the persistent levels: do it here.
@@ -317,6 +313,7 @@ export class HSAmbrosia extends HSModule
 
     // Never used, and not really any need for it since we want HSAmbrosia basically always ON
     async destroy() {
+        this.#gameActiveLoadoutObserver?.disconnect();
         await this.quickbar.destroy();
         await this.disableBerryMinibars();
         this.unsubscribeGameDataChanges();
@@ -464,6 +461,33 @@ export class HSAmbrosia extends HSModule
     // ------------ Active Loadout State ------------
     // ==============================================
 
+    /** The real loadout slot the game marks as active (last successfully loaded or saved), if any. */
+    #getGameActiveSlot(): HTMLButtonElement | undefined {
+        return this.#loadoutsSlots.find(slot => slot.classList.contains('activeBlueberryLoadout')) as HTMLButtonElement | undefined;
+    }
+
+    /**
+     * The game is the source of truth for the active loadout: it marks a slot (activeBlueberryLoadout) only
+     * after a successful load or save, on any tab. Follow it. Until it marks one (it marks none at page load),
+     * the best match found from the save at load is kept.
+     */
+    #observeGameActiveLoadout(): void {
+        this.#gameActiveLoadoutObserver?.disconnect();
+
+        const syncFromGame = () => {
+            const gameSlot = this.#getGameActiveSlot();
+            if (!gameSlot) return;
+            const slotEnum = HSAmbrosiaHelper.getSlotEnumBySlotId(gameSlot.id);
+            if (slotEnum && slotEnum !== this.activeLoadout) this.updateActiveLoadout(slotEnum);
+        };
+
+        this.#gameActiveLoadoutObserver = new MutationObserver(syncFromGame);
+        for (const slot of this.#loadoutsSlots) {
+            this.#gameActiveLoadoutObserver.observe(slot, { attributes: true, attributeFilter: ['class'] });
+        }
+        syncFromGame();
+    }
+
     async resetActiveLoadout() {
         // Ensure quickbar section is injected before manipulating DOM
         await this.#ensureAmbrosiaSection();
@@ -598,6 +622,14 @@ export class HSAmbrosia extends HSModule
 
     public async performInitialActiveLoadoutMatch(saveData: GameData): Promise<void> {
         if (!saveData) return;
+
+        // The game's marker, when it has set one, is authoritative: no need to guess
+        const gameSlot = this.#getGameActiveSlot();
+        const gameSlotEnum = gameSlot ? HSAmbrosiaHelper.getSlotEnumBySlotId(gameSlot.id) : undefined;
+        if (gameSlotEnum) {
+            this.updateActiveLoadout(gameSlotEnum);
+            return;
+        }
 
         await this.resetActiveLoadout();
         const { id: bestMatchId, score: highestScore } = this.findBestMatchingAmbrosiaLoadout(saveData);
@@ -1289,9 +1321,9 @@ export class HSAmbrosia extends HSModule
         let skippedCount = 0;
         let failures: { index: number; reason: string }[] = [];
         try {
-            previouslyActiveSlot = document.querySelector(
-                '.blueberryLoadoutSlot.hs-rainbow-border'
-            ) as HTMLButtonElement | null;
+            // The real slot to reload afterwards: the game's marker, else our best guess from load
+            previouslyActiveSlot = this.#getGameActiveSlot()
+                ?? (this.activeLoadout ? document.getElementById(this.activeLoadout) as HTMLButtonElement | null : null);
             // previous active slot logged only on error
 
             text = await navigator.clipboard.readText();

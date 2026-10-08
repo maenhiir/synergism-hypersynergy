@@ -289,6 +289,15 @@ export class HSUtils {
         return nullProxy as T;
     }
 
+    /**
+     * A CSS url() value for any URL. Always quoted: an unquoted url() is invalid when the URL contains
+     * spaces, quotes or parentheses (e.g. "Pictures/PurpleAmbrosia/Purple Upgrades/PurpleHoney.png"),
+     * and the browser then silently ignores the whole CSS value.
+     */
+    static cssUrl(url: string): string {
+        return `url(${JSON.stringify(url)})`;
+    }
+
     static #translationFiles = new Map<string, Promise<Record<string, unknown> | undefined>>();
 
     /** Fetch a game translation file the same way the game does (cached per language). */

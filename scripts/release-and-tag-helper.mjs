@@ -94,8 +94,17 @@ const esbuildScript = join(root, 'esbuild.config.js');
 const releaseFilePath = join(root, 'release', 'mod', 'hypersynergism_release.js');
 if (!existsSync(releaseFilePath)) fatal('Release file missing: ' + releaseFilePath);
 const releaseFileRel = relative(root, releaseFilePath).replace(/\\/g, '/');
-const purgePath = '/gh/Ferlieloi/synergism-hypersynergy@master/release/mod/hypersynergism_release.js';
-const purgeUrl = `https://purge.jsdelivr.net${purgePath}`;
+// Files served to players from @master through jsDelivr: the mod (rebuilt by every release, always
+// purged), and the web loader chain (bridge userscript -> hypersynergism.user.js -> patcher.js),
+// purged only when changed since the previous release.
+const purgeFiles = [
+    { file: releaseFileRel, always: true },
+    { file: 'synergism_modloader/lib/patcher.js' },
+    { file: 'src/loader/hypersynergism.user.js' },
+    { file: 'src/loader/tampermonkey-bridge.user.js' },
+];
+const purgePathFor = (file) => `/gh/Ferlieloi/synergism-hypersynergy@master/${file}`;
+const purgeUrlFor = (purgePath) => `https://purge.jsdelivr.net${purgePath}`;
 
 const argv = process.argv.slice(2);
 
@@ -111,10 +120,10 @@ log('  and performs the full tag workflow:');
 log('    1) ensures git clean/merge/rebase state');
 log('    2) checks tags in local and remote, auto-bumps if needed');
 log('    3) builds release artifact with esbuild');
-log('    4) stages release+package files and commits');
+log('    4) checks loader versions (offers a bridge @version bump, reminds about the patcher loaderVersion), stages release+package files and commits');
 log('    5) creates an annotated v<version> tag');
 log('    6) prompts to push branch and tag to origin at end');
-log('    7) waits 10 seconds, then requests a jsDelivr purge for the @master mod script');
+log('    7) prompts to purge jsDelivr (the mod, plus loader files changed since the previous release), waits 10s, purges');
 log('');
 log('Flags:');
 log('  -h, --help       Show this help and exit');
@@ -156,9 +165,31 @@ skipPrompts = opts.yes;
 // -------- Git Helpers --------
 // =============================
 
-/** Sort semver-like strings in descending order. */
+// Compares embedded numbers as numbers ("2.9.0" < "2.10.0"), not character by character
+const versionCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+/**
+ * Compare two version strings like "2.10.0", "2.14.4b" or "2.14.4b-dev1".
+ * The part before the first "-" is compared numerically (a letter suffix comes after the plain
+ * version: 2.10.2 < 2.10.2c); a version without pre-release ("-dev1") comes after its pre-releases.
+ */
+function compareVersions(a, b) {
+    const [aMain, ...aPreParts] = a.split('-');
+    const [bMain, ...bPreParts] = b.split('-');
+    const mainOrder = versionCollator.compare(aMain, bMain);
+    if (mainOrder !== 0) return mainOrder;
+
+    const aPre = aPreParts.join('-');
+    const bPre = bPreParts.join('-');
+    if (aPre === bPre) return 0;
+    if (!aPre) return 1;
+    if (!bPre) return -1;
+    return versionCollator.compare(aPre, bPre);
+}
+
+/** Sort version strings in descending order (latest first). */
 function semverSort(array) {
-    return array.slice().sort((a, b) => b.localeCompare(a));
+    return array.slice().sort((a, b) => compareVersions(b, a));
 }
 
 /** Parse git tag output (local or remote) into normalized version strings. */
@@ -173,7 +204,8 @@ function parseTagList(raw) {
             const localMatch = trimmed.match(/^(?:v)?(.+)$/);
             return localMatch ? localMatch[1] : null;
         })
-        .filter(Boolean)
+        // Mod versions only: other tags (e.g. the launcher's loader-vX.Y.Z) have their own versioning
+        .filter(version => version && /^\d/.test(version))
     ));
 }
 
@@ -239,6 +271,15 @@ function refHasRelease(ref) {
 function isTracked(filePath) {
     const r = run('git', ['ls-files', '--error-unmatch', filePath]);
     return !r.error && r.status === 0;
+}
+
+/**
+ * The nearest mod release tag reachable from `ref` (e.g. "v2.14.4b"), or '' if none.
+ * Only "v<digit>..." tags: other tags (e.g. the launcher's loader-vX.Y.Z) are separate releases.
+ */
+function getPreviousReleaseTag(ref) {
+    const r = run('git', ['describe', '--tags', '--abbrev=0', '--match', 'v[0-9]*', ref]);
+    return r.status === 0 && !r.error ? String(r.stdout).trim() : '';
 }
 
 /** Return true if a local tag exists. */
@@ -440,6 +481,79 @@ async function chooseTarget(status) {
 
 
 // ===============================
+// --- Loader Version Checks -----
+// ===============================
+
+const bridgeFile = 'src/loader/tampermonkey-bridge.user.js';
+const patcherFile = 'synergism_modloader/lib/patcher.js';
+const userscriptVersionRe = /^(\/\/\s*@version\s+)(\S+)/m;
+const patcherVersionRe = /(const loaderVersion\s*=\s*')([^']+)(')/;
+
+/** Read a version from file content (current working tree, or `ref` when given). */
+function readFileVersion(file, re, ref) {
+    const content = ref
+        ? (() => { const r = run('git', ['show', `${ref}:${file}`]); return r.status === 0 ? String(r.stdout) : ''; })()
+        : (existsSync(join(root, file)) ? readFileSync(join(root, file), 'utf8') : '');
+    return content.match(re)?.[2] ?? null;
+}
+
+/** "1.2" -> "1.3", "4.1.9" -> "4.1.10": increment the last numeric part. */
+function bumpLastNumber(version) {
+    return version.replace(/(\d+)(?!.*\d)/, (n) => String(Number(n) + 1));
+}
+
+/**
+ * Before the release commit, compare the web loader files with the previous release:
+ * - the Tampermonkey bridge: players only receive an update if its @version increases, so offer a bump;
+ * - the patcher: its loaderVersion only labels the console logs, so just a reminder.
+ * (hypersynergism.user.js is downloaded fresh by the bridge on every load: its @version is never used.)
+ */
+async function checkLoaderVersions() {
+    const previousTag = getPreviousReleaseTag('HEAD');
+    if (!previousTag) {
+        info('No previous release tag found: skipping loader version checks.');
+        return;
+    }
+
+    // Working tree vs previous release, so uncommitted changes going into this release count too
+    const diff = run('git', ['diff', '--name-only', previousTag, '--', bridgeFile, patcherFile]);
+    if (diff.status !== 0) {
+        warn(`Could not compare loader files with ${previousTag}: skipping loader version checks.`);
+        return;
+    }
+    const changed = new Set(String(diff.stdout).split(/\r?\n/).map(line => line.trim()).filter(Boolean));
+
+    // 1) Bridge: a changed bridge needs a higher @version, or Tampermonkey never updates it
+    if (changed.has(bridgeFile)) {
+        const before = readFileVersion(bridgeFile, userscriptVersionRe, previousTag);
+        const now = readFileVersion(bridgeFile, userscriptVersionRe);
+        if (now && before === now) {
+            const bumped = bumpLastNumber(now);
+            warn(`${bridgeFile} changed since ${previousTag} but its @version is still ${now}: Tampermonkey won't update it for players.`);
+            if (await askYesNo(`Bump the bridge @version from ${now} to ${bumped}?`)) {
+                const path = join(root, bridgeFile);
+                writeFileSync(path, readFileSync(path, 'utf8').replace(userscriptVersionRe, `$1${bumped}`), 'utf8');
+                runAndCheck('git', ['add', bridgeFile]);
+                success(`Bridge @version bumped to ${bumped} (staged for the release commit).`);
+            } else {
+                warn('Bridge @version not bumped: players with the bridge installed will keep the old one.');
+            }
+        }
+    }
+
+    // 2) Patcher: its loaderVersion is shown in the loader's console logs ([HS-LOADER vX]). Reminder only.
+    if (changed.has(patcherFile)) {
+        const before = readFileVersion(patcherFile, patcherVersionRe, previousTag);
+        const now = readFileVersion(patcherFile, patcherVersionRe);
+        if (now && before === now) {
+            info(`Reminder: ${patcherFile} changed since ${previousTag}, but its loaderVersion is still ${now}.`
+                + ' Bump it if you want the console logs to show this loader change.');
+        }
+    }
+}
+
+
+// ===============================
 // --- Commit/Tag & Push Steps ---
 // ===============================
 
@@ -590,25 +704,64 @@ async function pushFlow(status) {
     success('Pushed tag.');
 }
 
+/**
+ * jsDelivr paths to purge: the mod file always, the loader files only if they changed between the
+ * previous release tag and this one. Without a previous tag (first release), everything is purged.
+ */
+function getPurgePaths(status) {
+    const previousTag = getPreviousReleaseTag(`${status.targetTag}^`);
+    if (!previousTag) {
+        warn('No previous release tag found: purging all jsDelivr files.');
+        return purgeFiles.map(({ file }) => purgePathFor(file));
+    }
+
+    const optionalFiles = purgeFiles.filter(({ always }) => !always).map(({ file }) => file);
+    const diff = run('git', ['diff', '--name-only', previousTag, status.targetTag, '--', ...optionalFiles]);
+    if (diff.status !== 0) {
+        warn(`Could not compare with ${previousTag}: purging all jsDelivr files.`);
+        return purgeFiles.map(({ file }) => purgePathFor(file));
+    }
+
+    const changed = new Set(String(diff.stdout).split(/\r?\n/).map(line => line.trim()).filter(Boolean));
+    const selected = purgeFiles.filter(({ file, always }) => always || changed.has(file));
+    const skipped = purgeFiles.filter(entry => !selected.includes(entry));
+    info(`Loader files compared with previous release ${previousTag}.`);
+    if (skipped.length > 0) info(`Unchanged, not purged: ${skipped.map(({ file }) => file).join(', ')}`);
+    return selected.map(({ file }) => purgePathFor(file));
+}
+
 async function purgeModCache(status) {
     if (status.branch !== 'master') {
         info('Skipping @master jsDelivr purge because this release was pushed from another branch.');
         return;
     }
 
+    const purgePaths = getPurgePaths(status);
+    const fileList = purgePaths.map(purgePath => purgePath.split('@master/')[1]).join(', ');
+    if (!await askYesNo(`Purge the jsDelivr cache for ${purgePaths.length} file(s) (${fileList})?`)) {
+        info('jsDelivr purge skipped. Purge manually later if needed:');
+        purgePaths.forEach(purgePath => info(`  ${purgeUrlFor(purgePath)}`));
+        return;
+    }
+
     logWait('Waiting 10 seconds after the push before purging jsDelivr...');
     await new Promise(resolve => setTimeout(resolve, 10_000));
-    try {
-        const response = await fetch(purgeUrl, { signal: AbortSignal.timeout(15_000) });
-        const body = await response.text();
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`);
-        const result = JSON.parse(body);
-        if (!result.paths?.[purgePath] || result.paths[purgePath].throttled || result.status === 'error') {
-            throw new Error(`Purge was throttled or rejected: ${body.slice(0, 200)}`);
+
+    // One request per file, each checked on its own
+    for (const purgePath of purgePaths) {
+        const purgeUrl = purgeUrlFor(purgePath);
+        try {
+            const response = await fetch(purgeUrl, { signal: AbortSignal.timeout(15_000) });
+            const body = await response.text();
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`);
+            const result = JSON.parse(body);
+            if (!result.paths?.[purgePath] || result.paths[purgePath].throttled || result.status === 'error') {
+                throw new Error(`Purge was throttled or rejected: ${body.slice(0, 200)}`);
+            }
+            success(`jsDelivr purge request accepted: ${purgeUrl}`);
+        } catch (error) {
+            warn(`jsDelivr purge could not be confirmed (${error.message || error}). Purge manually: ${purgeUrl}`);
         }
-        success(`jsDelivr purge request accepted: ${purgeUrl}`);
-    } catch (error) {
-        warn(`jsDelivr purge could not be confirmed (${error.message || error}). Purge manually: ${purgeUrl}`);
     }
 }
 
@@ -629,6 +782,8 @@ async function purgeModCache(status) {
     }
 
     await chooseTarget(status);
+
+    await checkLoaderVersions();
 
     await commitFlow(status);
 

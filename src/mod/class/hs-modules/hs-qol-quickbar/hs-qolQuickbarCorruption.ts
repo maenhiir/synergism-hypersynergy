@@ -791,7 +791,7 @@ export class HSQOLCorruptionQuickbar extends HSQOLQuickbarBase {
         if (!iconEl) return;
 
         if (iconUrl) {
-            iconEl.style.backgroundImage = `url(${iconUrl})`;
+            iconEl.style.backgroundImage = HSUtils.cssUrl(iconUrl);
             iconEl.style.display = 'block';
             slot.classList.add('hs-corruption-slot-icon');
         } else {
