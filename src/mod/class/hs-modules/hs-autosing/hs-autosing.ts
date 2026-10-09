@@ -59,6 +59,10 @@ export class HSAutosing extends HSModule {
     #startCancelled = false;
     // Start requested while a cancelled start was still running: started once it has ended
     #startRequestedAgain = false;
+    // Chains still running (main loop, final stage), settled versions. After a stop, they end at their next
+    // #autosingEnabled check: a start waits for them, so a run never overlaps the chains of the previous one.
+    // A living chain can then trust the shared flag (true = its own run) and the shared state.
+    #chains = new Set<Promise<void>>();
     #restartTimer?: number;
     #targetSingularity = 0;
     #prevActionTime: number = 0;
@@ -131,6 +135,8 @@ export class HSAutosing extends HSModule {
     #upg81ClickLoopActive: boolean = false;
     #upg81ClickLoopGeneration: number = 0;
     #exaltStateObserver?: MutationObserver;
+    // Step of #enterAndLeaveExalt(): a stop while 'entering' leaves the Exalt autosing entered
+    #exaltStep: 'none' | 'entering' | 'leaving' = 'none';
     #waitForExaltStateActive?: {
         targetState: boolean;
         resolve: (value: boolean) => void;
@@ -396,10 +402,12 @@ export class HSAutosing extends HSModule {
                         HSLogger.debug(() => 'antiquitiesRuneLockedContainer found hidden - buying antiquities', this.context);
                         this.#antiquitiesObserverActivated = true;
                         this.#antiquitiesObserver?.disconnect();
-                        this.#performFinalStage().catch(error => {
+                        this.#trackChain(this.#performFinalStage().catch(error => {
+                            // Waits ended by a stop can throw: only an error during the run stops autosing
+                            if (!this.#autosingEnabled) return;
                             HSLogger.warn(`Error during final stage: ${error instanceof Error ? error.message : String(error)}`, this.context);
                             this.stopAutosing();
-                        });
+                        }));
                         break;
                     }
                 }
@@ -535,6 +543,16 @@ export class HSAutosing extends HSModule {
 
     // Every failed start goes through stopAutosing(), which turns the start toggle back off
     async #startAutosing(): Promise<void> {
+        // First, before anything a previous run's chain could still read (elements, modal, strategy…)
+        const previousRunEnded = await this.#waitForPreviousChains();
+        if (this.#isStartCancelled()) return;
+        if (!previousRunEnded) {
+            HSLogger.warn("The previous Auto-Sing run is still running after 10 s (a strategy wait longer than that?): start cancelled.", this.context);
+            HSUI.Notify("Auto-Sing could not start: the previous run is still finishing a long step. Try again in a moment.", { notificationType: 'warning' });
+            this.stopAutosing();
+            return;
+        }
+
         if (!await this.cacheAlmostEverything()) { this.stopAutosing(); return; }
         if (this.#isStartCancelled()) return;
 
@@ -589,7 +607,29 @@ export class HSAutosing extends HSModule {
             HSGlobal.HSLogger.logLevel = ELogLevel.NONE;
         }
 
-        this.#performAutosingLogic();
+        this.#trackChain(this.#performAutosingLogic());
+    }
+
+    /** Keeps a chain in #chains until it has ended, whether it resolves or rejects. */
+    #trackChain(chain: Promise<void>): void {
+        const settled = chain.then(() => undefined, () => undefined);
+        this.#chains.add(settled);
+        void settled.then(() => this.#chains.delete(settled));
+    }
+
+    /**
+     * Waits for the chains of the previous run to end. They do by themselves at their next flag check:
+     * at most their current sleep (≤ 1 s with the default strategies, 4.5 s in the push).
+     * @returns false if they're still running after 10 s (a custom strategy wait longer than that):
+     * the start must not go on, the old chain would run alongside the new run.
+     */
+    async #waitForPreviousChains(): Promise<boolean> {
+        if (this.#chains.size === 0) return true;
+        HSLogger.debug(() => `Waiting for ${this.#chains.size} chain(s) of the previous run to end`, this.context);
+        return await Promise.race([
+            Promise.all(this.#chains).then(() => true),
+            HSUtils.sleep(10000).then(() => false),
+        ]);
     }
 
     public async restartAutosing(): Promise<void> {
@@ -655,6 +695,15 @@ export class HSAutosing extends HSModule {
 
     async #stopAutosingCore(options: { modalDisposition: 'review' | 'destroy' }): Promise<void> {
         this.#autosingEnabled = false;
+
+        // Stopped between entering Exalt 2 and leaving it: leave it, or the player stays inside.
+        // Clicked before stopAutosing() restores the settings: auto-confirm (or the dialog watcher) still
+        // answers its Confirm, and stopDialogWatcher() at the end of this stop clicks its Alert away.
+        if (this.#exaltStep === 'entering' && this.#isInExalt()) {
+            HSLogger.log('Autosing stopped inside Exalt 2: leaving it.', this.context);
+            this.#exalt2Btn.click();
+        }
+        this.#exaltStep = 'none';
         this.#saveType.checked = false;
 
         this.#antiquitiesObserver?.disconnect();
@@ -663,6 +712,8 @@ export class HSAutosing extends HSModule {
         this.#upg81Observer?.disconnect();
         this.#upg81Observer = undefined;
         this.#stopUpg81Clicking();
+        // Ends the wait of strategy step 999, so its chain ends (a start waits for it)
+        this.#upg81PromiseResolve?.(false);
         this.#upg81PromiseResolve = undefined;
         this.#upg81Promise = undefined;
 
@@ -833,6 +884,7 @@ export class HSAutosing extends HSModule {
     async #performAutosingLogic(): Promise<void> {
         try {
             await this.#useAddAndTimeCodes();
+            if (!this.#autosingEnabled) return;
 
             if (this.#autosingModal) {
                 await HSQuickbarManager.getInstance().whenSectionInjected('ambrosia');
@@ -846,6 +898,8 @@ export class HSAutosing extends HSModule {
                     quarks = data?.quarks ?? 0;
                     goldenQuarks = data?.goldenQuarks ?? 0;
                 }
+                // Stopped meanwhile: don't reset the review window, and don't enter Exalt 2 below
+                if (!this.#autosingEnabled) return;
                 this.#autosingModal.start(this.#strategy!, quarks, goldenQuarks);
                 this.#autosingModal.show();
             }
@@ -890,6 +944,8 @@ export class HSAutosing extends HSModule {
                 }
             }
         } catch (error) {
+            // Waits ended by a stop can throw. Stopping again would cancel a pending restart.
+            if (!this.#autosingEnabled) return;
             const errorMessage = error instanceof Error ? error.message : String(error);
             HSLogger.warn(`Error during autosing logic: ${errorMessage}`, this.context);
             this.stopAutosing();
@@ -989,8 +1045,11 @@ export class HSAutosing extends HSModule {
         const challenge = phaseConfig.strat[actionIndex];
 
         const wb = challenge.challengeWaitBefore ?? 0;
-        if (wb > 0)
+        if (wb > 0) {
             await HSUtils.sleepUntilElapsed(this.#prevActionTime, wb, this.context);
+            // Stopped during the wait: don't act on the game (or restart/stop autosing again with 902/903)
+            if (!this.#autosingEnabled) return null;
+        }
 
         switch (challenge.challengeNumber) {
             case 401: {
@@ -1562,11 +1621,18 @@ export class HSAutosing extends HSModule {
     }
 
     async #enterAndLeaveExalt(): Promise<boolean> {
-        this.#exalt2Btn.click();
-        if (!await this.#waitForExaltState(true) || !this.#autosingEnabled) return false;
+        try {
+            this.#exaltStep = 'entering';
+            this.#exalt2Btn.click();
+            // Stopped meanwhile: #stopAutosingCore() already left the Exalt. A second click would enter it again.
+            if (!await this.#waitForExaltState(true) || !this.#autosingEnabled) return false;
 
-        this.#exalt2Btn.click();
-        return await this.#waitForExaltState(false);
+            this.#exaltStep = 'leaving';
+            this.#exalt2Btn.click();
+            return await this.#waitForExaltState(false);
+        } finally {
+            this.#exaltStep = 'none';
+        }
     }
 
 
@@ -1586,6 +1652,8 @@ export class HSAutosing extends HSModule {
             phaseLabelOverride: AOAG_PHASE_NAME,
             ignoreObserverActivated: true
         });
+        // Stopped during the AOAG phase: don't go on with the final phase (corruptions, Ascend…)
+        if (!this.#autosingEnabled) return;
 
         this.#prevActionTime = performance.now();
         await this.#matchStageToStrategy('final');
@@ -1611,6 +1679,8 @@ export class HSAutosing extends HSModule {
         if (this.#stopAtSingularitysEnd && this.#autosingEnabled) {
             HSUI.Notify("Standard strategy exited: Auto-Sing will now push this sing before stopping.");
             await this.#pushSingularityBeforeStop();
+            // Stopped during the push: stopping again would cancel a start waiting for this chain
+            if (!this.#autosingEnabled) return;
             HSUI.Notify("Auto-Sing stopped at end of singularity as requested.");
             this.stopAutosing();
             return;
@@ -1626,68 +1696,79 @@ export class HSAutosing extends HSModule {
     // MISC - OPTIONAL PUSH AT THE END BEFORE STOPPING
     // ============================================================================
 
+    /** Runs the push's steps in order, and ends at the first step after a stop. */
     async #pushSingularityBeforeStop(): Promise<void> {
-        this.#ambrosia_late_cube.click();
-        await this.#corruptionManager.setCorruptions(ZERO_CORRUPTIONS);
+        const steps: Array<() => unknown> = [
+            () => this.#ambrosia_late_cube.click(),
+            () => this.#corruptionManager.setCorruptions(ZERO_CORRUPTIONS),
 
-        await this.#maxC11to14WithC10(11);
-        await this.#maxC11to14WithC10(12);
-        await this.#maxC11to14WithC10(13);
-        await this.#maxC11to14WithC10(14);
+            () => this.#maxC11to14WithC10(11),
+            () => this.#maxC11to14WithC10(12),
+            () => this.#maxC11to14WithC10(13),
+            () => this.#maxC11to14WithC10(14),
 
-        await this.#corruptionManager.setCorruptions(
-            { viscosity: 16, drought: 16, deflation: 16, extinction: 16, illiteracy: 16, recession: 16, dilation: 16, hyperchallenge: 16 }
-        );
+            () => this.#corruptionManager.setCorruptions(
+                { viscosity: 16, drought: 16, deflation: 16, extinction: 16, illiteracy: 16, recession: 16, dilation: 16, hyperchallenge: 16 }
+            ),
 
-        await this.#autoChallengeButton.click();
+            () => this.#autoChallengeButton.click(),
 
-        for (let i = 1; i <= 2; i++) {
-            await this.#executePushLoop();
+            ...this.#pushLoopSteps(),
+            ...this.#pushLoopSteps(),
+
+            ...this.#lastPushLoopSteps(),
+            () => this.#clickResetButton(this.#exitTranscBtn),
+            () => HSUtils.sleep(2000),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_late_cube),
+            () => this.#autoChallengeButton.click(),
+            () => this.#clickResetButton(this.#exitAscBtn),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_luck),
+        ];
+
+        for (const step of steps) {
+            if (!this.#autosingEnabled) return;
+            await step();
         }
-
-        await this.#executeLastPushLoop();
-        await this.#clickResetButton(this.#exitTranscBtn);
-        await HSUtils.sleep(2000);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_late_cube);
-        await this.#autoChallengeButton.click();
-        await this.#clickResetButton(this.#exitAscBtn);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_luck);
     }
 
-    async #executePushLoop(): Promise<void> {
-        await this.#waitForCompletion(15, 0, 0, 0);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_obt);
-        await HSUtils.sleep(4500);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_off);
-        await HSUtils.sleep(100);
-        await this.#antSacrifice.click();
-        await HSUtils.sleep(100);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_late_cube);
+    #pushLoopSteps(): Array<() => unknown> {
+        return [
+            () => this.#waitForCompletion(15, 0, 0, 0),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_obt),
+            () => HSUtils.sleep(4500),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_off),
+            () => HSUtils.sleep(100),
+            () => this.#antSacrifice.click(),
+            () => HSUtils.sleep(100),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_late_cube),
 
-        await this.#clickResetButton(this.#exitAscBtn);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_off);
-        await HSUtils.sleep(4500);
-        await this.#antSacrifice.click();
-        await HSUtils.sleep(100);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_late_cube);
+            () => this.#clickResetButton(this.#exitAscBtn),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_off),
+            () => HSUtils.sleep(4500),
+            () => this.#antSacrifice.click(),
+            () => HSUtils.sleep(100),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_late_cube),
+        ];
     }
 
-    async #executeLastPushLoop(): Promise<void> {
-        await this.#waitForCompletion(15, 0, 0, 0);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_obt);
-        await HSUtils.sleep(4500);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_off);
-        await HSUtils.sleep(100);
-        await this.#antSacrifice.click();
-        await HSUtils.sleep(100);
-        await this.#setAmbrosiaLoadout(this.#ambrosia_obt);
+    #lastPushLoopSteps(): Array<() => unknown> {
+        return [
+            () => this.#waitForCompletion(15, 0, 0, 0),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_obt),
+            () => HSUtils.sleep(4500),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_off),
+            () => HSUtils.sleep(100),
+            () => this.#antSacrifice.click(),
+            () => HSUtils.sleep(100),
+            () => this.#setAmbrosiaLoadout(this.#ambrosia_obt),
 
-        await this.#waitForCompletion(6, 150, 1200, 0);
-        await this.#waitForCompletion(1, 9001, 1200, 0);
-        await this.#waitForCompletion(2, 9001, 1200, 0);
-        await this.#waitForCompletion(3, 9001, 1200, 0);
-        await this.#waitForCompletion(4, 9001, 1200, 0);
-        await this.#waitForCompletion(5, 9001, 1200, 0);
+            () => this.#waitForCompletion(6, 150, 1200, 0),
+            () => this.#waitForCompletion(1, 9001, 1200, 0),
+            () => this.#waitForCompletion(2, 9001, 1200, 0),
+            () => this.#waitForCompletion(3, 9001, 1200, 0),
+            () => this.#waitForCompletion(4, 9001, 1200, 0),
+            () => this.#waitForCompletion(5, 9001, 1200, 0),
+        ];
     }
 
 
@@ -1721,6 +1802,7 @@ export class HSAutosing extends HSModule {
 
     async #useAddAndTimeCodes(): Promise<void> {
         await this.#setAmbrosiaLoadout(this.#ambrosia_luck);
+        if (!this.#autosingEnabled) return;
         if (this.#addCodeAllBtn) this.#addCodeAllBtn.click();
         if (this.#timeCodeBtn) this.#timeCodeBtn.click();
         await HSUtils.waitForNextTack();

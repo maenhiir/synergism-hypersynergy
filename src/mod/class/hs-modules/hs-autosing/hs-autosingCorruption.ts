@@ -16,6 +16,7 @@ export const ANT_CORRUPTIONS: CorruptionLoadout = {
 };
 
 export class HSAutosingCorruption {
+    static readonly #DOM_IMPORT_TIMEOUT_MS = 2000;
     readonly #context = 'HSAutosingCorruption';
 
     readonly #corrNext: Record<string, HTMLElement | null>;
@@ -79,7 +80,9 @@ export class HSAutosingCorruption {
             return;
         }
 
-        // DOM Fallback
+        // DOM Fallback. Time-limited: it would otherwise click forever if the import never matches
+        // (also after autosing has stopped, and a new start waits for autosing's chains to end)
+        const deadline = performance.now() + HSAutosingCorruption.#DOM_IMPORT_TIMEOUT_MS;
         while (true) {
             this.#importBtn.click();
             this.#corruptionPromptInput.value = jsonString;
@@ -88,6 +91,10 @@ export class HSAutosingCorruption {
             if (this.#corruptionsMatchDOM(corruptions)) {
                 this.#lastAppliedCorruptionsJson = jsonString;
                 HSLogger.debug(() => `Corruptions DOM match: ${jsonString}`, this.#context);
+                break;
+            }
+            if (performance.now() >= deadline) {
+                HSLogger.warn(`Failed to set corruptions through the import prompt within ${HSAutosingCorruption.#DOM_IMPORT_TIMEOUT_MS} ms: ${jsonString}`, this.#context);
                 break;
             }
         }
