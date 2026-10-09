@@ -475,13 +475,16 @@ export class HSAutosing extends HSModule {
 
         this.#isExposureReady = !!(this.#stageFunc && this.#exposedPlayer && this.#getMaxChallengesFunc && isAutoConfirmPatched && isAfterTackHooked && this.#applyCorruptionsFunc);
 
+        // Not required for the fast mode: without it, only the quark export at the end of each singularity is skipped
+        const isExportOutputPatched = !!(window as any).__HS_EXPORT_OUTPUT_PATCHED;
         const exposureMsg = `Exposure status: ${this.#isExposureReady}
             (stageFunc: ${!!this.#stageFunc},
             exposedPlayer: ${!!this.#exposedPlayer},
             getMaxChallengesFunc: ${!!this.#getMaxChallengesFunc},
             onAfterTackHook: ${isAfterTackHooked},
             applyCorruptionsFunc: ${!!this.#applyCorruptionsFunc},
-            autoConfirmPatched: ${isAutoConfirmPatched})`;
+            autoConfirmPatched: ${isAutoConfirmPatched},
+            exportOutputPatched: ${isExportOutputPatched})`;
         if (this.#isExposureReady) HSLogger.debug(() => exposureMsg, this.context);
         else HSLogger.warn(exposureMsg, this.context);
     }

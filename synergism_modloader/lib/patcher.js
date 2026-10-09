@@ -51,9 +51,11 @@ function patchBundle(code, options = {}) {
 
     const findFunctionBodyByName = (src, fnName) => {
         const escapedName = fnName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Not \b: minified names can start with "$" (e.g. "$w"), and \b never matches before a "$"
+        const notInName = '(?<![\\w$])';
         const headerPatterns = [
-            new RegExp(`\\b${escapedName}\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[a-zA-Z_$][\\w$]*)\\s*=>\\s*\\{`, 'g'),
-            new RegExp(`\\b${escapedName}\\s*=\\s*(?:async\\s+)?function\\s*\\([^)]*\\)\\s*\\{`, 'g'),
+            new RegExp(`${notInName}${escapedName}\\s*=\\s*(?:async\\s*)?(?:\\([^)]*\\)|[a-zA-Z_$][\\w$]*)\\s*=>\\s*\\{`, 'g'),
+            new RegExp(`${notInName}${escapedName}\\s*=\\s*(?:async\\s+)?function\\s*\\([^)]*\\)\\s*\\{`, 'g'),
             new RegExp(`(?:async\\s+)?function\\s+${escapedName}\\s*\\([^)]*\\)\\s*\\{`, 'g')
         ];
 
@@ -411,7 +413,9 @@ function patchBundle(code, options = {}) {
             const allFnMatches = [...backCtx.matchAll(/([a-zA-Z_$][\w$]*)\s*=\s*e\s*=>\s*\{/g)];
             const corrFn = allFnMatches.at(-1)?.[1];
             if (corrFn) {
-                const fnHeaderRe = new RegExp(`\\b${corrFn}\\s*=\\s*e\\s*=>\\s*\\{`, 'g');
+                // Escaped, and not \b: minified names can start with "$", and \b never matches before a "$"
+                const escapedCorrFn = corrFn.replace(/\$/g, '\\$');
+                const fnHeaderRe = new RegExp(`(?<![\\w$])${escapedCorrFn}\\s*=\\s*e\\s*=>\\s*\\{`, 'g');
                 let bodyStart = -1, fhm;
                 const preAnchor = code.slice(0, corrAnchorIdx);
                 while ((fhm = fnHeaderRe.exec(preAnchor)) !== null) bodyStart = fhm.index + fhm[0].length;
