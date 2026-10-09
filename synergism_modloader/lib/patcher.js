@@ -458,6 +458,41 @@ function patchBundle(code, options = {}) {
     }
 
     // ==================================================================================
+    // ── VALIDATEBLUEBERRYTREE PATCH — expose BlueberryUpgrades.ts validateBlueberryTree as window.__HS_validateBlueberryTree
+    // Lets the mod check an ambrosia tree before writing it into a loadout slot itself (no import through the game,
+    // which replaces the live tree and shows dialogs). It only reads the player's state.
+    // Found by what it does, not by minified names or call shapes: the function checking the Exalt unlock criteria
+    // (string literals "Exalt1x1", "Exalt5x1", "Exalt9x1") against the ambrosia budget (player.lifetimeAmbrosia).
+    // Exposed where it's defined when it's an arrow or a function expression, so it exists as soon as the bundle runs:
+    //   eK=e=>{  becomes  eK=window.__HS_validateBlueberryTree=e=>{
+    // Otherwise at the start of its body: it then exists once the game has validated a tree (at the first loadout load).
+    try {
+        const vbtResult = findEnclosingFunction(code, /["']Exalt9x1["']/g, ['lifetimeAmbrosia', 'Exalt1x1', 'Exalt5x1']);
+        if (vbtResult) {
+            const fn = vbtResult.fnName;
+            // Escaped, and not \b: minified names can start with "$"
+            const escapedFn = fn.replace(/\$/g, '\\$');
+            const headerStart = Math.max(0, vbtResult.bodyStart - 300);
+            const header = code.slice(headerStart, vbtResult.bodyStart);
+            const exprHeader = new RegExp(
+                `(?<![\\w$.])${escapedFn}\\s*=\\s*(?=(?:async\\s*)?(?:\\([^)]*\\)|[\\w$]+)\\s*=>\\s*\\{$|(?:async\\s+)?function\\s*\\([^)]*\\)\\s*\\{$)`
+            ).exec(header);
+            if (exprHeader) {
+                const insertAt = headerStart + exprHeader.index + exprHeader[0].length;
+                code = code.slice(0, insertAt) + 'window.__HS_validateBlueberryTree=' + code.slice(insertAt);
+                log(`Patched validateBlueberryTree (fn=${fn})`);
+            } else {
+                code = code.slice(0, vbtResult.bodyStart) + `\nwindow.__HS_validateBlueberryTree=${fn};\n` + code.slice(vbtResult.bodyStart);
+                log(`Patched validateBlueberryTree at its first call (fn=${fn})`);
+            }
+        } else {
+            warn('Could not patch validateBlueberryTree — Exalt unlock check not found in bundle');
+        }
+    } catch (e) {
+        warn('Error while patching validateBlueberryTree', e);
+    }
+
+    // ==================================================================================
     if (options.steam) {
         // ── STEAM AUTO-SYNC PATCH — remove manual trigger (e || ...)
         try {
@@ -827,6 +862,7 @@ function startBrowserLoader(options) {
                         `exportOutputPatched: !!window.__HS_EXPORT_OUTPUT_PATCHED,` +
                         `getMaxChallenges:    typeof window.__HS_getMaxChallenges,` +
                         `applyCorruptions:    typeof window.__HS_applyCorruptions,` +
+                        `validateBlueberryTree: typeof window.__HS_validateBlueberryTree,` +
                         `dialogHookPatched:   !!window.__HS_DIALOG_HOOK_PATCHED,` +
                         `tackHooks:           Array.isArray(window.__HS_tackHooks) ? window.__HS_tackHooks.length : 'n/a'` +
                     `};` +

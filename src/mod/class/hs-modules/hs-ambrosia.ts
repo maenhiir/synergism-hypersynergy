@@ -20,8 +20,15 @@ import { HSUI } from "../hs-core/hs-ui";
 import { HSUtils } from "../hs-utils/hs-utils";
 import { HSGameDataAPI } from "../hs-core/gds/hs-gamedata-api";
 import { HSAmbrosiaHelper } from "./hs-ambrosiaHelper";
-import { HSSettingsDefinition } from "../../types/module-types/hs-settings-types";
 import minibarCSS from "inline:../../resource/css/module/hs-ambrosia-minibars.css";
+import { HSGameDialogs } from "../hs-core/dialogs/hs-game-dialogs";
+import type { HSAutosing } from "./hs-autosing/hs-autosing";
+
+interface HSQuickImportSummary {
+    importedCount: number;
+    skippedCount: number;
+    failures: { index: number; reason: string }[];
+}
 
 /**
  * Class: HSAmbrosia
@@ -1308,27 +1315,8 @@ export class HSAmbrosia extends HSModule
     }
 
     async #handleQuickImport() {
-        const autoConfirmSetting = HSSettings.getSetting('autoConfirmPopups' as keyof HSSettingsDefinition);
-        if (autoConfirmSetting) { // Should be already OFF, and no need to restore
-            autoConfirmSetting.disable();
-        }
-        // RETIRED: The quick importer no longer needs to suspend the AFK/idle swapper.
-        // const afkSwapperSetting = HSSettings.getSetting('ambrosiaIdleSwap' as keyof HSSettingsDefinition);
-        // const restoreAfkSwapper = afkSwapperSetting && afkSwapperSetting.isEnabled();
-        // if (afkSwapperSetting) {
-        //     afkSwapperSetting.disable();
-        // }
-        let previouslyActiveSlot: HTMLButtonElement | null = null;
         let text: string | undefined;
-        let importedCount = 0;
-        let skippedCount = 0;
-        let failures: { index: number; reason: string }[] = [];
         try {
-            // The real slot to reload afterwards: the game's marker, else our best guess from load
-            previouslyActiveSlot = this.#getGameActiveSlot()
-                ?? (this.activeLoadout ? document.getElementById(this.activeLoadout) as HTMLButtonElement | null : null);
-            // previous active slot logged only on error
-
             text = await navigator.clipboard.readText();
             // clipboard length hidden
 
@@ -1351,53 +1339,14 @@ export class HSAmbrosia extends HSModule
             }
 
             const isSingleLoadout = lines.length === 1 || (lines.length === 2 && lines[1] === '');
-            let activeSlotIndex = 0;
-            if (isSingleLoadout && this.activeLoadout) {
-                const loadoutNumber = HSAmbrosiaHelper.getLoadoutNumberFromSlot(this.activeLoadout);
-                if (typeof loadoutNumber === 'number') {
-                    activeSlotIndex = loadoutNumber - 1;
-                }
+            let summary: HSQuickImportSummary;
+            if (HSGlobal.exposedPlayer) {
+                summary = this.#importLinesDirect(lines, isSingleLoadout);
+            } else {
+                if (this.#refuseGameImportDuringAutosing()) return;
+                summary = await this.#importLinesThroughGame(lines, isSingleLoadout);
             }
-
-            const fileInput = document.getElementById('importBlueberries') as HTMLInputElement;
-            if (!fileInput) { throw new Error('Import input element not found'); }
-
-            // A single loadout goes through the game's quick save (no mode switch).
-            // Several loadouts target arbitrary slots, which still needs SAVE mode.
-            if (!isSingleLoadout) {
-                HSAmbrosiaHelper.ensureLoadoutMode('saveTree');
-            }
-
-            importedCount = 0;
-            skippedCount = 0;
-            failures = [];
-
-            // starting loadout import loop
-            for (let i = 0; i < lines.length; i++) {
-                const loadoutData = lines[i];
-                // per-line processing
-                // Skip empty lines
-                if (!loadoutData) {
-                    skippedCount++;
-                    // skipped empty line
-                    continue;
-                }
-
-                const result = isSingleLoadout
-                    ? await this.#importLoadoutLineToActiveSlot(loadoutData, activeSlotIndex)
-                    : await this.#importLoadoutLine(loadoutData, i);
-
-                if (result.skipped) {
-                    skippedCount++;
-                    continue;
-                }
-                if (!result.success) {
-                    failures.push({ index: i + 1, reason: result.reason ?? 'Unknown error' });
-                    continue;
-                }
-
-                importedCount++;
-            }
+            const { importedCount, skippedCount, failures } = summary;
 
             // summary: imported/skipped/failed
             if (failures.length > 0) {
@@ -1418,21 +1367,152 @@ export class HSAmbrosia extends HSModule
 
             HSLogger.error(`Quick Import failed: ${msg}`, this.context, true);
             // Log detailed error context for debugging
-            HSLogger.debug(() => `Quick Import exception message: ${msg}; clipboardLen=${text?.length ?? 'n/a'}; imported=${importedCount ?? 0}; skipped=${skippedCount ?? 0}; failures=${JSON.stringify(failures ?? [])}`, this.context);
+            HSLogger.debug(() => `Quick Import exception message: ${msg}; clipboardLen=${text?.length ?? 'n/a'}`, this.context);
 
             HSUI.Notify('Quick Import failed', { notificationType: 'error' });
-        } finally {
-            await HSUtils.stopDialogWatcher();
-            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-            // RETIRED: AFK/idle swapper restoration after quick import.
-            // if (restoreAfkSwapper) {
-            //     afkSwapperSetting.enable();
-            // }
-            if (previouslyActiveSlot) {
-                previouslyActiveSlot.click();
-            }
-            // cleanup complete
         }
+    }
+
+    /**
+     * With the patched game: writes each loadout straight into the save (player.blueberryLoadouts), as the game's
+     * own save does. No dialog, no loadout mode switch, the live tree untouched, all in one synchronous step: safe
+     * while autosing runs. Then loads the game's active slot if it was written, so the live tree matches it.
+     * One line goes into the active slot; several go into slots 1 to 16, in order (empty lines skipped).
+     */
+    #importLinesDirect(lines: string[], isSingleLoadout: boolean): HSQuickImportSummary {
+        const summary: HSQuickImportSummary = { importedCount: 0, skippedCount: 0, failures: [] };
+        const activeSlot = this.#getGameActiveSlot();
+        const activeSlotNumber = activeSlot ? this.#getSlotNumber(activeSlot) : undefined;
+        let activeSlotWritten = false;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line) {
+                summary.skippedCount++;
+                continue;
+            }
+
+            const slotNumber = isSingleLoadout ? activeSlotNumber : i + 1;
+            const result = slotNumber === undefined
+                ? { success: false, reason: 'No active loadout: load a loadout first' }
+                : this.#writeLoadout(slotNumber, line);
+            if (!result.success) {
+                summary.failures.push({ index: i + 1, reason: result.reason ?? 'Unknown error' });
+                continue;
+            }
+            summary.importedCount++;
+            if (slotNumber === activeSlotNumber) activeSlotWritten = true;
+        }
+
+        if (activeSlot && activeSlotWritten) this.#reloadLoadoutSlot(activeSlot);
+        return summary;
+    }
+
+    #getSlotNumber(slot: HTMLElement): number | undefined {
+        const slotEnum = HSAmbrosiaHelper.getSlotEnumBySlotId(slot.id);
+        return slotEnum ? HSAmbrosiaHelper.getLoadoutNumberFromSlot(slotEnum) : undefined;
+    }
+
+    /** Writes one loadout line into a slot of the save, once the game's own validation (patcher) accepts it. */
+    #writeLoadout(slotNumber: number, line: string): { success: boolean; reason?: string } {
+        const player = HSGlobal.exposedPlayer;
+        if (!player) return { success: false, reason: 'Game not patched' };
+        const slot = this.#loadoutsSlots.find(loadoutSlot => loadoutSlot.id === `blueberryLoadout${slotNumber}`);
+        if (!slot || slot.style.display === 'none') return { success: false, reason: `Loadout ${slotNumber} is locked` };
+
+        let tree: unknown;
+        try {
+            tree = JSON.parse(HSAmbrosia.#normalizeQuickImportLoadout(line));
+        } catch {
+            tree = undefined;
+        }
+        if (!tree || typeof tree !== 'object' || Array.isArray(tree)) return { success: false, reason: 'Not a loadout (invalid JSON)' };
+
+        const validate = (window as any).__HS_validateBlueberryTree;
+        if (typeof validate === 'function') {
+            if (!validate(tree)) {
+                return { success: false, reason: 'Rejected by the game: locked upgrade, missing prerequisite, or not enough ambrosia or blueberries' };
+            }
+        } else {
+            HSLogger.debug(() => `Quick Import: the game's tree validation is not patched, loadout ${slotNumber} written unchecked`, this.context);
+        }
+
+        player.blueberryLoadouts[slotNumber] = tree;
+        return { success: true };
+    }
+
+    /** Loads a slot, so the live tree matches what was just written into it. Its success Alert is dismissed. */
+    #reloadLoadoutSlot(slot: HTMLButtonElement) {
+        HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
+        HSGameDialogs.act('quickImport', { alert: 'dismiss' }, () => slot.click());
+        this.#queuePersistentAmbrosiaLevelsRefresh();
+    }
+
+    /** Without the patched game, imports go through the game's import and loadout clicks: not while autosing runs. */
+    #refuseGameImportDuringAutosing(): boolean {
+        if (!HSModuleManager.getModule<HSAutosing>('HSAutosing')?.isAutosingActive()) return false;
+        HSUI.Notify('Loadout import is unavailable while Auto-Sing runs (the game is not patched)', { notificationType: 'warning' });
+        return true;
+    }
+
+    /**
+     * Without the patched game (bookmarklet): imports each line through the game's tree import and reads its
+     * result Alert, then saves it into its slot. Several lines need SAVE mode: the game can't load an empty slot
+     * (an empty tree is invalid), so load + quick save can't target one. Never while autosing runs: its loadout
+     * switches would save into its slots.
+     */
+    async #importLinesThroughGame(lines: string[], isSingleLoadout: boolean): Promise<HSQuickImportSummary> {
+        const summary: HSQuickImportSummary = { importedCount: 0, skippedCount: 0, failures: [] };
+        // The real slot to reload afterwards: the game's marker, else our best guess from load
+        const previouslyActiveSlot = this.#getGameActiveSlot()
+            ?? (this.activeLoadout ? document.getElementById(this.activeLoadout) as HTMLButtonElement | null : null);
+        try {
+            let activeSlotIndex = 0;
+            if (isSingleLoadout && this.activeLoadout) {
+                const loadoutNumber = HSAmbrosiaHelper.getLoadoutNumberFromSlot(this.activeLoadout);
+                if (typeof loadoutNumber === 'number') {
+                    activeSlotIndex = loadoutNumber - 1;
+                }
+            }
+
+            const fileInput = document.getElementById('importBlueberries') as HTMLInputElement;
+            if (!fileInput) { throw new Error('Import input element not found'); }
+
+            // A single loadout goes through the game's quick save (no mode switch).
+            // Several loadouts target arbitrary slots, which still needs SAVE mode.
+            if (!isSingleLoadout) {
+                HSAmbrosiaHelper.ensureLoadoutMode('saveTree');
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                const loadoutData = lines[i];
+                // Skip empty lines
+                if (!loadoutData) {
+                    summary.skippedCount++;
+                    continue;
+                }
+
+                const result = isSingleLoadout
+                    ? await this.#importLoadoutLineToActiveSlot(loadoutData, activeSlotIndex)
+                    : await this.#importLoadoutLine(loadoutData, i);
+
+                if (result.skipped) {
+                    summary.skippedCount++;
+                    continue;
+                }
+                if (!result.success) {
+                    summary.failures.push({ index: i + 1, reason: result.reason ?? 'Unknown error' });
+                    continue;
+                }
+
+                summary.importedCount++;
+            }
+        } finally {
+            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
+            // The imports replaced the live tree: back to the loadout that was active
+            if (previouslyActiveSlot) this.#reloadLoadoutSlot(previouslyActiveSlot);
+        }
+        return summary;
     }
 
     async #importLoadoutLine(line: string, slotIndex?: number): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
@@ -1594,7 +1674,16 @@ export class HSAmbrosia extends HSModule
 
     public async importLoadoutToActiveSlot(loadout: string): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
         try {
-            const result = await this.#importLoadoutLineToActiveSlot(loadout);
+            let result: { success: boolean; skipped?: boolean; reason?: string };
+            if (HSGlobal.exposedPlayer) {
+                const summary = this.#importLinesDirect([loadout.trim()], true);
+                result = summary.importedCount > 0
+                    ? { success: true }
+                    : { success: false, reason: summary.failures[0]?.reason ?? 'Empty loadout' };
+            } else {
+                if (this.#refuseGameImportDuringAutosing()) return { success: false, reason: 'Auto-Sing is running' };
+                result = await this.#importLoadoutLineToActiveSlot(loadout);
+            }
             if (!result.success) {
                 HSLogger.warn(`importLoadoutToActiveSlot failed: ${JSON.stringify({ source: 'importLoadoutToActiveSlot', reason: result.reason })}`, this.context);
                 HSUI.Notify(`Failed to import loadout${result.reason ? `: ${result.reason}` : ''}`, { position: 'top', notificationType: 'error' });
