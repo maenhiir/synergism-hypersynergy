@@ -1,7 +1,6 @@
 import { EventBuffType } from "../../types/data-types/hs-event-data";
 import { HSSettingType } from "../../types/module-types/hs-settings-types";
 import { CSSValue } from "../../types/module-types/hs-ui-types";
-import { HSElementHooker } from "../hs-core/hs-elementhooker";
 import { HSLogger } from "../hs-core/hs-logger";
 
 /**
@@ -19,9 +18,7 @@ import { HSLogger } from "../hs-core/hs-logger";
  */
 export class HSUtils {
     static #context = 'HSUtils';
-    static #dialogWatcherInterval: number | null = null;
     static sleep = (ms: number): Promise<void> => new Promise<void>(resolve => setTimeout(resolve, ms));
-    static dialogWatcherTime = 5; // More than that ?
     static tackTime = 5; // for bookmark/steam (no tack hook)
 
     static #_onAfterTack: ((fn: () => void) => void) | null = null;
@@ -33,10 +30,6 @@ export class HSUtils {
 
     static setAutoConfirm(value: boolean): void {
         (window as any).__HS_AUTO_CONFIRM = value;
-    }
-
-    static disableAutoConfirmForDialogAutomation(): void {
-        HSUtils.setAutoConfirm(false);
     }
 
     // Reusable MessageChannel for sub-millisecond event-loop yielding.
@@ -419,135 +412,6 @@ export class HSUtils {
         return finalStr;
     }
 
-    /*
-        Warning: This is really hacky
-
-        We override the original display property setter and getters, as well as setProperty method for the element's style
-
-        This is becase the game forces the inline display style in a weird way when it wants to show e.g. alert modals
-        and thus we can't simply force the display to none, but instead we need to prevent the game from setting it in the first place
-    */
-    static #killElementDisplayProperties(element: HTMLElement) {
-        const originalSetProperty = CSSStyleDeclaration.prototype.setProperty;
-        let originalDisplayDescriptor;
-
-        try {
-            // First try the prototype (which might be CSSStyleDeclaration.prototype)
-            originalDisplayDescriptor = Object.getOwnPropertyDescriptor(
-                Object.getPrototypeOf(element.style),
-                'display'
-            );
-
-            // If that fails, try getting it from CSSStyleDeclaration.prototype directly
-            if (!originalDisplayDescriptor) {
-                originalDisplayDescriptor = Object.getOwnPropertyDescriptor(
-                    CSSStyleDeclaration.prototype,
-                    'display'
-                );
-            }
-
-            // If still not found, create a default descriptor that will at least restore functionality
-            if (!originalDisplayDescriptor) {
-                originalDisplayDescriptor = {
-                    configurable: true,
-                    enumerable: true,
-
-                    get: function () {
-                        return this.getPropertyValue('display');
-                    },
-
-                    set: function (value: any) {
-                        this.setProperty('display', value, '');
-                    }
-                };
-            }
-        } catch (e) {
-            // Create a fallback descriptor that will restore basic functionality
-            originalDisplayDescriptor = {
-                configurable: true,
-                enumerable: true,
-
-                get: function () {
-                    return this.getPropertyValue('display');
-                },
-
-                set: function (value: any) {
-                    this.setProperty('display', value, '');
-                }
-            };
-        }
-
-        Object.defineProperty(element.style, 'display', { get: function () { return 'none'; }, set: function () { return; }, configurable: true });
-
-        element.style.setProperty = function (propertyName, value, priority) {
-            if (propertyName === 'display')
-                return originalSetProperty.call(this, propertyName, 'none');
-
-            return originalSetProperty.call(this, propertyName, value, priority);
-        };
-
-        return {
-            restore: () => {
-                Object.defineProperty(element.style, 'display', originalDisplayDescriptor);
-                element.style.setProperty = originalSetProperty;
-            }
-        };
-    }
-
-    static #cachedBG: HTMLElement | null = null;
-    static #cachedConfirmBox: HTMLElement | null = null;
-    static #cachedAlertWrapper: HTMLElement | null = null;
-
-    static async killAlertConfirmElementDisplayProperties(): Promise<{ restore: () => void }> {
-        const bg = !this.#cachedBG ? await HSElementHooker.HookElement('#transparentBG') as HTMLElement : this.#cachedBG;
-        const confirmBox = !this.#cachedConfirmBox ? await HSElementHooker.HookElement('#confirmationBox') as HTMLElement : this.#cachedConfirmBox;
-        const alertWrapper = !this.#cachedAlertWrapper ? await HSElementHooker.HookElement('#alertWrapper') as HTMLElement : this.#cachedAlertWrapper;
-
-        this.#cachedBG = bg;
-        this.#cachedConfirmBox = confirmBox;
-        this.#cachedAlertWrapper = alertWrapper;
-
-        const killedBg = HSUtils.#killElementDisplayProperties(bg);
-        const killedConfirm = HSUtils.#killElementDisplayProperties(confirmBox);
-        const killedAlertWrapper = HSUtils.#killElementDisplayProperties(alertWrapper);
-
-        return {
-            restore: () => {
-                killedBg.restore();
-                killedConfirm.restore();
-                killedAlertWrapper.restore();
-            }
-        };
-    }
-
-    // This might be very volatile, but it works for now and hides alert/confirmation boxes
-    static async hiddenAction(action: (...args: any[]) => any, alertOrConfirm: "alert" | "confirm" = "alert", isDoubleModal = false, waitMs = 25) {
-        const okAlert = document.querySelector('#ok_alert') as HTMLButtonElement;
-        const okConfirm = document.querySelector('#ok_confirm') as HTMLButtonElement;
-
-        const protector = await HSUtils.killAlertConfirmElementDisplayProperties();
-
-        await action();
-        await HSUtils.wait(waitMs);
-
-        if (isDoubleModal) {
-            okConfirm.click();
-            await HSUtils.wait(waitMs);
-
-            protector.restore();
-
-            okAlert.click();
-        } else {
-            protector.restore();
-
-            if (alertOrConfirm === "alert") {
-                okAlert.click();
-            } else {
-                okConfirm.click();
-            }
-        }
-    }
-
     static async Noop() {
         return;
     }
@@ -688,194 +552,6 @@ export class HSUtils {
         return Promise.resolve();
     }
 
-    static startDialogWatcher(dialogWatcherTime: number | undefined = undefined): void {
-        // Prevent multiple watchers
-        if (this.#dialogWatcherInterval !== null) { return; }
-
-        if (dialogWatcherTime !== undefined) {
-            this.dialogWatcherTime = dialogWatcherTime;
-        }
-
-        HSUtils.disableAutoConfirmForDialogAutomation();
-        HSLogger.debug(() => `Dialog watcher started, triggers every ${this.dialogWatcherTime}ms`, HSUtils.#context);
-
-        let confirmWrapper: HTMLElement | null = null;
-        let alertWrapper: HTMLElement | null = null;
-        let promptWrapper: HTMLElement | null = null;
-        let okConfirm: HTMLButtonElement | null = null;
-        let okAlert: HTMLButtonElement | null = null;
-        let okPrompt: HTMLButtonElement | null = null;
-
-        this.#dialogWatcherInterval = window.setInterval(() => {
-            // Check for confirm dialog
-            if (!confirmWrapper || !confirmWrapper.isConnected) {
-                confirmWrapper = document.getElementById('confirmWrapper');
-            }
-            if (confirmWrapper && confirmWrapper.style.display === 'block') {
-                if (!okConfirm || !okConfirm.isConnected) {
-                    okConfirm = document.getElementById('ok_confirm') as HTMLButtonElement;
-                }
-                if (okConfirm) {
-                    okConfirm.click();
-                    // HSLogger.debug(() => `Confirm dialog detected and OK button clicked`, HSUtils.#context);
-                }
-            }
-            // Check for alert dialog
-            if (!alertWrapper || !alertWrapper.isConnected) {
-                alertWrapper = document.getElementById('alertWrapper');
-            }
-            if (alertWrapper && alertWrapper.style.display === 'block') {
-                if (!okAlert || !okAlert.isConnected) {
-                    okAlert = document.getElementById('ok_alert') as HTMLButtonElement;
-                }
-                if (okAlert) {
-                    okAlert.click();
-                    // HSLogger.debug(() => `Alert dialog detected and OK button clicked`, HSUtils.#context);
-                }
-            }
-            // Check for prompt dialog
-            if (!promptWrapper || !promptWrapper.isConnected) {
-                promptWrapper = document.getElementById("promptWrapper");
-            }
-            if (promptWrapper && promptWrapper.style.display === "block") {
-                if (!okPrompt || !okPrompt.isConnected) {
-                    okPrompt = document.getElementById('ok_prompt') as HTMLButtonElement;
-                }
-                if (okPrompt) {
-                    okPrompt.click();
-                    // HSLogger.debug(() => `Prompt dialog detected and OK button clicked`, HSUtils.#context);
-                }
-            }
-
-        }, this.dialogWatcherTime); // Check every 10ms for fast response
-    }
-
-    static async stopDialogWatcher(): Promise<void> {
-        return new Promise((resolve) => {
-            let emptyLoopCount = 0;
-            const maxEmptyLoops = 3; // Wait for 3 consecutive empty loops before stopping
-
-            let confirmWrapper: HTMLElement | null = null;
-            let alertWrapper: HTMLElement | null = null;
-            let okConfirm: HTMLButtonElement | null = null;
-            let okAlert: HTMLButtonElement | null = null;
-
-            const shutdownInterval = window.setInterval(() => {
-                let foundDialog = false;
-
-                // Check for confirm dialog
-                if (!confirmWrapper || !confirmWrapper.isConnected) {
-                    confirmWrapper = document.getElementById('confirmWrapper');
-                }
-                if (confirmWrapper && confirmWrapper.style.display === 'block') {
-                    if (!okConfirm || !okConfirm.isConnected) {
-                        okConfirm = document.getElementById('ok_confirm') as HTMLButtonElement;
-                    }
-                    if (okConfirm) {
-                        okConfirm.click();
-                        foundDialog = true;
-                    }
-                }
-
-                // Check for alert dialog
-                if (!alertWrapper || !alertWrapper.isConnected) {
-                    alertWrapper = document.getElementById('alertWrapper');
-                }
-                if (alertWrapper && alertWrapper.style.display === 'block') {
-                    if (!okAlert || !okAlert.isConnected) {
-                        okAlert = document.getElementById('ok_alert') as HTMLButtonElement;
-                    }
-                    if (okAlert) {
-                        okAlert.click();
-                        foundDialog = true;
-                    }
-                }
-
-                if (foundDialog) {
-                    emptyLoopCount = 0; // Reset counter if we found a dialog
-                } else {
-                    emptyLoopCount++;
-                }
-
-                // If we've had enough empty loops, shut down
-                if (emptyLoopCount >= maxEmptyLoops) {
-                    window.clearInterval(shutdownInterval);
-
-                    if (this.#dialogWatcherInterval !== null) {
-                        window.clearInterval(this.#dialogWatcherInterval);
-                        this.#dialogWatcherInterval = null;
-                    }
-
-                    HSLogger.debug(() => 'Dialog watcher stopped after clearing all dialogs', HSUtils.#context);
-                    resolve();
-                }
-            }, HSUtils.dialogWatcherTime);
-        });
-    }
-    /*
-        static async closeExpectedDialogs(expectedClosures: number, timeoutMs = 500): Promise<boolean> {
-            HSUtils.disableAutoConfirmForDialogAutomation();
-            HSLogger.debug(() => `entering closeExpectedDialogs(expectedClosures=${expectedClosures}, timeoutMs=${timeoutMs})`, HSUtils.#context);
-    
-            let closedCount = 0;
-            let prevConfirmOpen = false;
-            let prevAlertOpen = false;
-            let prevPromptOpen = false;
-            let resolved = false;
-    
-            return new Promise((resolve) => {
-                let timeoutId: number | null = null;
-                const intervalId = window.setInterval(() => {
-                    const confirmWrapper = document.getElementById('confirmWrapper');
-                    const alertWrapper = document.getElementById('alertWrapper');
-                    const promptWrapper = document.getElementById('promptWrapper');
-    
-                    const confirmOpen = confirmWrapper?.style.display === 'block';
-                    const alertOpen = alertWrapper?.style.display === 'block';
-                    const promptOpen = promptWrapper?.style.display === 'block';
-    
-                    if (confirmOpen && !prevConfirmOpen) {
-                        document.getElementById('ok_confirm')?.click();
-                    }
-                    if (alertOpen && !prevAlertOpen) {
-                        document.getElementById('ok_alert')?.click();
-                    }
-                    if (promptOpen && !prevPromptOpen) {
-                        document.getElementById('ok_prompt')?.click();
-                    }
-    
-                    if (prevConfirmOpen && !confirmOpen) closedCount++;
-                    if (prevAlertOpen && !alertOpen) closedCount++;
-                    if (prevPromptOpen && !promptOpen) closedCount++;
-    
-                    prevConfirmOpen = confirmOpen;
-                    prevAlertOpen = alertOpen;
-                    prevPromptOpen = promptOpen;
-    
-                    if (closedCount >= expectedClosures) {
-                        if (!resolved) {
-                            resolved = true;
-                            window.clearInterval(intervalId);
-                            if (timeoutId !== null) {
-                                window.clearTimeout(timeoutId);
-                            }
-                            HSLogger.debug(() => `closeExpectedDialogs resolved successfully after ${closedCount} closures`, HSUtils.#context);
-                            resolve(true);
-                        }
-                    }
-                }, HSUtils.dialogWatcherTime);
-    
-                timeoutId = window.setTimeout(() => {
-                    if (!resolved) {
-                        resolved = true;
-                        window.clearInterval(intervalId);
-                        HSLogger.warn(`closeExpectedDialogs timed out after ${timeoutMs}ms before reaching expected ${expectedClosures} closure(s); only ${closedCount} were closed.`, HSUtils.#context);
-                        resolve(false);
-                    }
-                }, timeoutMs);
-            });
-        }
-    */
     static base64WithCRLF(
         base64: string,
         chunkSize = 49000

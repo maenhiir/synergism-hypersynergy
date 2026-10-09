@@ -23,8 +23,6 @@ export class HSAutosingCorruption {
 
     readonly #corrNext: Record<string, HTMLElement | null>;
     readonly #corruptionStatsContainer: HTMLElement | null | undefined;
-    readonly #corruptionPromptInput: HTMLInputElement;
-    readonly #corruptionPromptOkBtn: HTMLButtonElement;
     readonly #importBtn: HTMLButtonElement;
     #applyCorruptionsFunc: ((json: string) => boolean) | null;
     #lastAppliedCorruptionsJson: string | null = null;
@@ -35,14 +33,10 @@ export class HSAutosingCorruption {
     constructor(
         corrNext: Record<string, HTMLElement | null>,
         corruptionStatsContainer: HTMLElement | null | undefined,
-        corruptionPromptInput: HTMLInputElement,
-        corruptionPromptOkBtn: HTMLButtonElement,
         importBtn: HTMLButtonElement,
     ) {
         this.#corrNext = corrNext;
         this.#corruptionStatsContainer = corruptionStatsContainer;
-        this.#corruptionPromptInput = corruptionPromptInput;
-        this.#corruptionPromptOkBtn = corruptionPromptOkBtn;
         this.#importBtn = importBtn;
         this.#applyCorruptionsFunc = null;
     }
@@ -85,15 +79,14 @@ export class HSAutosingCorruption {
         // DOM Fallback. Time-limited: it would otherwise click forever if the import never matches
         // (also after autosing has stopped, and a new start waits for autosing's chains to end).
         // Clicks import only while no dialog is open, a few times at most: with a dialog open, each click
-        // would queue one more import Prompt, all shown later.
+        // would queue one more import Prompt, all shown later. Its session answers the Prompt with the loadout,
+        // and dismisses the Alert of a rejected import.
         const deadline = performance.now() + HSAutosingCorruption.#DOM_IMPORT_TIMEOUT_MS;
         let importClicks = 0;
         while (true) {
             if (importClicks < HSAutosingCorruption.#DOM_IMPORT_MAX_CLICKS && HSGameDialogs.isQueueIdle()) {
                 importClicks++;
-                this.#importBtn.click();
-                this.#corruptionPromptInput.value = jsonString;
-                this.#corruptionPromptOkBtn.click();
+                HSGameDialogs.act('corruptionImport', { prompt: { ok: jsonString }, alert: 'dismiss' }, () => this.#importBtn.click());
             }
             await HSUtils.yield();
             if (this.#corruptionsMatchDOM(corruptions)) {

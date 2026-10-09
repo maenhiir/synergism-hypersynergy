@@ -52,6 +52,8 @@ export class HSAmbrosia extends HSModule
     #addCodeAllButton: HTMLButtonElement | null = null;
     #addCodeOneButton: HTMLButtonElement | null = null;
     #timeCodeButton: HTMLButtonElement | null = null;
+    // Auto-Loadout: the slot to load back once the code has paid out
+    #pendingCodeRestore: { slot: HTMLButtonElement, codeSlotId: string } | undefined;
     #importBlueberriesButton: HTMLButtonElement | null = null;
     #importBlueberriesInput: HTMLInputElement | null = null;
     #persistentAmbrosiaLevelsToggleButton: HTMLButtonElement | null = null;
@@ -731,9 +733,14 @@ export class HSAmbrosia extends HSModule
         HSLogger.log(`Disabled auto loadout`, this.context);
     }
 
+    // Auto-Loadout runs from a capture listener on the code buttons, so before the game's own listener.
+    // The quickbar click loads the loadout synchronously (HSAmbrosiaQuickbar.onQuickBarClick): it's in place
+    // before the game uses the code, whoever clicked. No await before that click.
+    // Once the code's dialogs are over (it has paid out), the previous loadout is loaded back.
+    // Not while autosing runs: autosing sets its own loadout before using the codes.
+
     async #addCodeButtonHandler(e: Event) {
-        // const originalLoadout = this.activeLoadout;
-        // const originalLoadoutBtn = this.quickbar.getClonedButtonRef(originalLoadout);
+        if (HSModuleManager.getModule<HSAutosing>('HSAutosing')?.isAutosingActive()) return;
         const addLoadoutSetting = HSSettings.getSetting('autoLoadoutAdd') as HSSelectStringSetting;
 
         if (addLoadoutSetting) {
@@ -741,20 +748,12 @@ export class HSAmbrosia extends HSModule
             const addLoadoutBtn = this.quickbar.getClonedButtonRef(addLoadout);
             if (!addLoadout || !addLoadoutBtn) { HSLogger.warn('Invalid autoLoadoutAdd setting - cannot resolve addLoadout or loadoutSlot', this.context); return; }
 
-            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-
-            // We DON'T want any await before that...
-            // This calls hiddenAction via the quickbar click which kills all popups except Prompts
-            // (so 'Add All' and 'Add x1' will be taken care of. And 'Add'/'Add x10' will have the Prompt remaining, and 'Add x10' will handle his own Prompt)
-            // hiddenAction will trigger the loadout switch, then awaits a bit, which will let the game take back control,
-            // the game will handle the loadout switch first, then finally be able to handle the Add click
-            addLoadoutBtn.click();
+            this.#switchLoadoutForCode(addLoadoutBtn, addLoadout);
         }
     }
 
     async #timeCodeButtonHandler(e: Event) {
-        // const originalLoadout = this.activeLoadout;
-        // const originalLoadoutBtn = this.quickbar.getClonedButtonRef(originalLoadout);
+        if (HSModuleManager.getModule<HSAutosing>('HSAutosing')?.isAutosingActive()) return;
         const timeLoadoutSetting = HSSettings.getSetting('autoLoadoutTime') as HSSelectStringSetting;
 
         if (timeLoadoutSetting) {
@@ -762,17 +761,48 @@ export class HSAmbrosia extends HSModule
             const timeLoadoutBtn = this.quickbar.getClonedButtonRef(timeLoadout);
             if (!timeLoadout || !timeLoadoutBtn) { HSLogger.warn('Invalid autoLoadoutTime setting - cannot resolve timeLoadout or loadoutSlot', this.context); return; }
 
-            HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-            timeLoadoutBtn.click();
-
-            // Let the game process the click
-            await HSUtils.waitForNextTack(2);
-
-            // We DON'T want any await before that... See Add comment above...
-            timeLoadoutBtn.click();
+            // The game's listener runs next, for this same click: the act's answers cover the time code's Confirm
+            // and Alerts (claimed through the click event). An instant answer only pays out with Cube Upgrade
+            // Cx11 (cubeUpgrades[61]) at 100: below, the winning window is at least 6 s away, so it always loses.
+            // Cx11 goes back to 0 at every singularity: checked at each click, the dialogs are shown meanwhile.
+            // Without the save (bookmarklet): always answered at once.
+            const cx11Level = HSGlobal.exposedPlayer?.cubeUpgrades?.[61];
+            if (cx11Level === undefined || cx11Level >= 100) {
+                HSGameDialogs.act('autoLoadoutTime', { confirm: 'ok', alert: 'dismiss' }, () => this.#switchLoadoutForCode(timeLoadoutBtn, timeLoadout));
+            } else {
+                HSUI.Notify('Auto-Loadout Time: Cx11 is not maxed, so the time code is shown for you to time it (an instant answer would always lose)', { notificationType: 'default' });
+                this.#switchLoadoutForCode(timeLoadoutBtn, timeLoadout);
+            }
         }
     }
 
+    /**
+     * Loads the code's loadout (through its quickbar copy), then loads the previous one back once the queue is
+     * idle: the code's dialogs are over, so it has paid out. Skipped when no slot was active, when the player
+     * switched or saved meanwhile, or when autosing started. One restore at a time: a second code meanwhile
+     * keeps the first previous slot.
+     */
+    #switchLoadoutForCode(codeLoadoutBtn: HTMLButtonElement, codeSlotId: string) {
+        const previousSlot = this.#pendingCodeRestore?.slot ?? this.#getGameActiveSlot();
+        codeLoadoutBtn.click();
+        if (!previousSlot || previousSlot.id === codeSlotId) {
+            this.#pendingCodeRestore = undefined;
+            return;
+        }
+
+        const isNew = !this.#pendingCodeRestore;
+        this.#pendingCodeRestore = { slot: previousSlot, codeSlotId };
+        if (!isNew) return;
+
+        void HSGameDialogs.whenQueueIdle().then(() => {
+            const restore = this.#pendingCodeRestore;
+            this.#pendingCodeRestore = undefined;
+            if (!restore) return;
+            if (HSModuleManager.getModule<HSAutosing>('HSAutosing')?.isAutosingActive()) return;
+            if (this.#getGameActiveSlot()?.id !== restore.codeSlotId) return;
+            this.#reloadLoadoutSlot(restore.slot, 'autoLoadoutRestore');
+        });
+    }
 
     // ==============================================
     // ---------------- Persistence -----------------
@@ -1441,10 +1471,10 @@ export class HSAmbrosia extends HSModule
         return { success: true };
     }
 
-    /** Loads a slot, so the live tree matches what was just written into it. Its success Alert is dismissed. */
-    #reloadLoadoutSlot(slot: HTMLButtonElement) {
+    /** Loads a slot (e.g. so the live tree matches what was just written into it). Its success Alert is dismissed. */
+    #reloadLoadoutSlot(slot: HTMLButtonElement, owner = 'quickImport') {
         HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-        HSGameDialogs.act('quickImport', { alert: 'dismiss' }, () => slot.click());
+        HSGameDialogs.act(owner, { alert: 'dismiss' }, () => slot.click());
         this.#queuePersistentAmbrosiaLevelsRefresh();
     }
 

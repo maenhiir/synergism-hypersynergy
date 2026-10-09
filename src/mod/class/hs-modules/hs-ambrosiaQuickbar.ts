@@ -7,6 +7,7 @@ import { HSSetting } from "../hs-core/settings/hs-setting";
 import { HSSettings } from "../hs-core/settings/hs-settings";
 import { HSGlobal } from "../hs-core/hs-global";
 import { HSAmbrosiaHelper } from "./hs-ambrosiaHelper";
+import { HSGameDialogs } from "../hs-core/dialogs/hs-game-dialogs";
 import { getEffectiveHeaterIconSrc } from "./hs-heater/hs-heater-icon-store";
 import { HSQuickbarIconPickerController } from "./hs-qol-quickbar/hs-qolQuickbarIconPicker";
 
@@ -19,7 +20,7 @@ export interface HeaterSlotIconApplyResult {
 export class HSAmbrosiaQuickbar {
     readonly context = 'HSAmbrosiaQuickbar';
     readonly host: HSAmbrosia;
-    #quickBarClickHandlers: Map<HTMLButtonElement, (e: Event) => Promise<void>> = new Map();
+    #quickBarClickHandlers: Map<HTMLButtonElement, (e: Event) => void> = new Map();
     #quickBarContextMenuHandlers: Map<HTMLButtonElement, (e: Event) => void> = new Map();
     #originalButtonRefs: Map<string, HTMLButtonElement> = new Map();
 
@@ -224,7 +225,7 @@ export class HSAmbrosiaQuickbar {
             clone.title = 'Alt+Click to pick an icon | Right-click to clear';
             this.#cacheOriginalButtonRef(buttonId);
 
-            const buttonHandler = async (e: Event) => {
+            const buttonHandler = (e: Event) => {
                 const mouseEvent = e as MouseEvent;
                 // Alt+Click enters icon pick mode
                 if (mouseEvent.altKey) {
@@ -234,7 +235,7 @@ export class HSAmbrosiaQuickbar {
                     return;
                 }
                 // Regular click
-                await this.onQuickBarClick(e, buttonId);
+                this.onQuickBarClick(e, buttonId);
             };
             // Right-click clears the custom icon for the slot
             const contextMenuHandler = (e: Event) => {
@@ -366,7 +367,11 @@ export class HSAmbrosiaQuickbar {
         }
     }
 
-    async onQuickBarClick(e: Event, buttonId: string) {
+    /**
+     * Loads the slot, synchronously: when Auto-Loadout calls this from its listener on a code button,
+     * the loadout is in place before the game's own listener uses the code. Its success Alert is dismissed.
+     */
+    onQuickBarClick(e: Event, buttonId: string): void {
         const realButton = this.#originalButtonRefs.get(buttonId) ?? document.getElementById(buttonId) as HTMLButtonElement | null;
         if (!realButton) { HSLogger.warn(`Could not find real button for ${buttonId}`, this.context); return; }
 
@@ -374,7 +379,7 @@ export class HSAmbrosiaQuickbar {
         if (!slotEnum) { HSLogger.warn(`Could not resolve Ambrosia slot enum for ${buttonId}`, this.context); return; }
 
         HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-        await HSUtils.hiddenAction(async () => { realButton.click(); });
+        HSGameDialogs.act('ambrosiaQuickbar', { alert: 'dismiss' }, () => realButton.click());
     }
 
     async showQuickBar() {

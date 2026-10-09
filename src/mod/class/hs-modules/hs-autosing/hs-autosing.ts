@@ -302,8 +302,6 @@ export class HSAutosing extends HSModule {
             addCodeAllBtn: document.getElementById("addCodeAll") as HTMLButtonElement | null,
             timeCodeBtn: document.getElementById("timeCode") as HTMLButtonElement | null,
             corruptionStats: document.getElementById('corruptionStats') as HTMLElement | null,
-            promptText: document.getElementById('prompt_text') as HTMLInputElement | null,
-            okPrompt: document.getElementById('ok_prompt') as HTMLButtonElement | null,
             corrImportBtn: document.querySelector('#corruptionLoadoutTable button.corrImport') as HTMLButtonElement | null,
             ...corrNextElements,
         } as Record<string, HTMLElement | null>;
@@ -318,8 +316,6 @@ export class HSAutosing extends HSModule {
         this.#corruptionManager = new HSAutosingCorruption(
             corrNext,
             elements.corruptionStats as HTMLElement,
-            elements.promptText as HTMLInputElement,
-            elements.okPrompt as HTMLButtonElement,
             elements.corrImportBtn as HTMLButtonElement,
         );
         return true;
@@ -464,9 +460,8 @@ export class HSAutosing extends HSModule {
         const isAfterTackHooked = HSUtils.cacheAfterTackHook();
 
         // Autosing's dialogs are answered by the dialog hook (HSGameDialogs), or by an older patcher's
-        // auto-confirm (__HS_AUTO_CONFIRM, see HSAutosingSettingsFixer). Without either, the dialog watcher clicks them.
+        // auto-confirm (__HS_AUTO_CONFIRM, see HSAutosingSettingsFixer). Without either, HSGameDialogs' watcher clicks them.
         const areDialogsAnswered = HSGameDialogs.isHookPatched() || HSUtils.isAutoConfirmPatched();
-        if (!areDialogsAnswered) HSUtils.startDialogWatcher(5);
 
         // Triggering the late setCorruptions patch in order to check if it's available (could be done at mod load...)
         await this.#corruptionManager.setCorruptions(ZERO_CORRUPTIONS);
@@ -584,7 +579,8 @@ export class HSAutosing extends HSModule {
             return;
         }
 
-        // From here, the game's Confirms and Alerts are answered (with the dialog hook). Cleared by #restoreHsSettings().
+        // From here, the game's Confirms and Alerts are answered (by the dialog hook, or by the dialog watcher
+        // without any patch). Cleared by #restoreHsSettings().
         HSGameDialogs.setAutosingActive(true);
         // This needs to be done before cacheExposedFunctions since it enables __HS_AUTO_CONFIRM (without the hook).
         // Appended: after a restart, the list still holds what the previous run changed (kept changed meanwhile)
@@ -710,8 +706,7 @@ export class HSAutosing extends HSModule {
 
         // Stopped between entering Exalt 2 and leaving it: leave it, or the player stays inside.
         // Its own session answers its dialogs: the exit Alert is queued after stopAutosing() has stopped
-        // autosing's answering. Without the hook, auto-confirm (or the dialog watcher) still answers the Confirm,
-        // and stopDialogWatcher() at the end of this stop clicks the Alert away.
+        // autosing's answering. Without the hook, the session answers them through the DOM.
         if (this.#exaltStep === 'entering' && this.#isInExalt()) {
             HSLogger.log('Autosing stopped inside Exalt 2: leaving it.', this.context);
             HSGameDialogs.act('autosing', { confirm: 'ok', alert: 'dismiss' }, () => this.#exalt2Btn.click());
@@ -763,8 +758,6 @@ export class HSAutosing extends HSModule {
                 this.#autosingModal = undefined;
             }
         }
-        // Without the hook only: it clicks OK on every visible Confirm and Alert, the player's included
-        if (!HSGameDialogs.isHookPatched()) await HSUtils.stopDialogWatcher();
     }
 
     public closeAutosingModalAfterReview(): void {
@@ -1343,9 +1336,11 @@ export class HSAutosing extends HSModule {
                     currentCompletions = getCompletions();
                 }
 
-                if (currentCompletions.gte(maxPossible) || currentCompletions.gte(minCompletionsDecimal)) {
+                // An empty progress row: the game has exited the challenge (e.g. maxed), no more completions
+                const exited = rawText.trim() === '';
+                if (exited || currentCompletions.gte(maxPossible) || currentCompletions.gte(minCompletionsDecimal)) {
                     if (waitTime > 0) await HSUtils.sleep(waitTime);
-                    HSLogger.debug(() => `-------> C${challengeIndex}: ${currentCompletions} completions reached`, this.context);
+                    HSLogger.debug(() => `-------> C${challengeIndex}: ${exited ? 'exited by the game' : `${currentCompletions} completions reached`}`, this.context);
                     return;
                 }
 
@@ -1378,10 +1373,12 @@ export class HSAutosing extends HSModule {
                 await HSUtils.waitForNextTack();
             }
         } else {
-            // Fallback: DOM text parsing + Decimal
+            // Fallback: DOM text parsing + Decimal. Once maxed, the game exits the challenge and empties its
+            // progress row (challengeExit): nothing left to wait for
             const getCompletions = accessor.getCompletions;
             const maxPossible = accessor.getGoal();
-            if (getCompletions().gte(maxPossible)) return;
+            const isDone = () => accessor.getLevelText().trim() === '' || getCompletions().gte(maxPossible);
+            if (isDone()) return;
 
             await new Promise<void>((resolve) => {
                 if (this.#challengeObserverActive) {
@@ -1395,7 +1392,7 @@ export class HSAutosing extends HSModule {
                 };
 
                 this.#challengeObserverActive = {
-                    predicate: () => getCompletions().gte(maxPossible),
+                    predicate: isDone,
                     resolve: resolveAndClearTimeout,
                     finished: false,
                 };

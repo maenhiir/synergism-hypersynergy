@@ -18,6 +18,8 @@ import { HSQuickbarManager } from "./hs-qol-quickbar/hs-qolQuickbarManager";
 import type { QUICKBAR_ID } from "./hs-qol-quickbar/hs-qolQuickbarManager";
 import type { GameData } from "../../types/data-types/hs-player-savedata";
 import { HSGameDialogs } from "../hs-core/dialogs/hs-game-dialogs";
+import { HSGlobal } from "../hs-core/hs-global";
+import { HSUI } from "../hs-core/hs-ui";
 
 const MAXED_UPGRADE_TOGGLES = {
     toggleMaxedGoldenQuarkUpgrades: 'hideMaxedGQUpgrades',
@@ -142,12 +144,7 @@ export class HSQOLButtons extends HSModule {
                 const clone2 = buyOfferingPotionButton.cloneNode(true) as HTMLElement;
                 clone2.id = 'offeringPotionMultiBuyButton';
                 clone2.textContent = 'BUY 10x';
-                clone2.addEventListener('click', () => {
-                    for (let i = 0; i < 10; i++) {
-                        buyOfferingPotionButton.click();
-                        setTimeout(() => { document.getElementById('ok_confirm')?.click(); }, 1);
-                    }
-                });
+                clone2.addEventListener('click', () => { void this.#buyPotions10(buyOfferingPotionButton); });
                 buyOfferingPotionButton.parentNode?.insertBefore(clone2, buyOfferingPotionButton.nextSibling);
             }
 
@@ -182,12 +179,7 @@ export class HSQOLButtons extends HSModule {
                 const clone2 = buyObtainiumPotionButton.cloneNode(true) as HTMLElement;
                 clone2.id = 'obtainiumPotionMultiBuyButton';
                 clone2.textContent = 'BUY 10x';
-                clone2.addEventListener('click', () => {
-                    for (let i = 0; i < 10; i++) {
-                        buyObtainiumPotionButton.click();
-                        setTimeout(() => { document.getElementById('ok_confirm')?.click(); }, 1);
-                    }
-                });
+                clone2.addEventListener('click', () => { void this.#buyPotions10(buyObtainiumPotionButton); });
                 buyObtainiumPotionButton.parentNode?.insertBefore(clone2, buyObtainiumPotionButton.nextSibling);
             }
 
@@ -195,6 +187,39 @@ export class HSQOLButtons extends HSModule {
             HSLogger.log('Obtainium potion multi buy / consume buttons injected', this.context);
         }
     };
+
+    /**
+     * Buys 10 potions, whatever the shop's buy mode: Buy ANY asks the amount in a Prompt (answered 10),
+     * Buy 10 buys up to 10 per click, Buy 1 needs 10 clicks. Buy MAX can't buy exactly 10: refused.
+     * The purchase Confirms are answered (shown when the game's shop confirmations are on).
+     */
+    async #buyPotions10(buyButton: HTMLElement): Promise<void> {
+        const mode = await this.#getShopBuyMode();
+        if (mode === true) {
+            HSUI.Notify('BUY 10x: the shop is in Buy MAX mode. Switch it to Buy 1, Buy 10 or Buy ANY', { notificationType: 'warning' });
+            return;
+        }
+        // Unknown mode: as Buy 1
+        const clicks = mode === 'ANY' || mode === 'TEN' ? 1 : 10;
+        HSGameDialogs.act('potionBuy10', { confirm: 'ok', prompt: { ok: '10' } }, () => {
+            for (let i = 0; i < clicks; i++) buyButton.click();
+        });
+    }
+
+    /** The shop's buy mode, as the game stores it: false (Buy 1), 'TEN', true (Buy MAX) or 'ANY'. */
+    async #getShopBuyMode(): Promise<boolean | 'TEN' | 'ANY' | undefined> {
+        const mode = HSGlobal.exposedPlayer?.shopBuyMaxToggle;
+        if (mode !== undefined) return mode;
+
+        // Without the patched game: the toggle's text, compared with the game's own labels
+        const text = document.getElementById('toggleBuyMaxShopText')?.textContent?.trim();
+        if (!text) return undefined;
+        const labels = [[false, 'shop.buy1'], ['TEN', 'shop.buy10'], [true, 'shop.buyMax'], ['ANY', 'shop.buyAny']] as const;
+        for (const [labelMode, key] of labels) {
+            if ((await HSUtils.getGameTranslation(key))?.trim() === text) return labelMode;
+        }
+        return undefined;
+    }
 
     // TODO: Make the 'add10' feature a 'addX' instead,
     // with X being editable by the user (by right-clicking the button or something...)
@@ -215,18 +240,11 @@ export class HSQOLButtons extends HSModule {
         add10Btn.className = 'hs-add-10-btn';
         add10Btn.textContent = 'Add x10';
 
-        add10Btn.addEventListener('click', async () => {
-            // This click triggers the Auto-Loadout feature (if enabled) with HSAmbrosia.#addCodeButtonHandler
-            addBtn.click();
-            const input = document.getElementById('prompt_text') as HTMLInputElement | null;
-            if (!input) return;
-            input.value = '10';
-            input.dispatchEvent(new Event('input',  { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-            HSUtils.startDialogWatcher();
-            await HSUtils.sleep(3);
-            HSUtils.stopDialogWatcher();
-            // TODO: Loadout restoration should happen here
+        add10Btn.addEventListener('click', () => {
+            // Answers the amount Prompt with 10 and dismisses the result Alert. Without a maxed calculator, the game
+            // then asks the sum in a second Prompt: shown (a prompt value answers only the first Prompt).
+            // The click also triggers Auto-Loadout (if enabled), through HSAmbrosia.#addCodeButtonHandler
+            HSGameDialogs.act('addCode10', { prompt: { ok: '10' }, alert: 'dismiss' }, () => addBtn.click());
         });
 
         // Insert the new button next to the existing buttons.

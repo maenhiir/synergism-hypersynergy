@@ -1,7 +1,6 @@
 import { CUBE_VIEW, MAIN_VIEW } from "../../types/module-types/hs-gamestate-types";
 import { HSElementHooker } from "../hs-core/hs-elementhooker";
 import { HSGameState } from "../hs-core/hs-gamestate";
-import { HSGlobal } from "../hs-core/hs-global";
 import { HSLogger } from "../hs-core/hs-logger";
 import { HSModule } from "../hs-core/module/hs-module";
 import { HSModuleManager } from "../hs-core/module/hs-module-manager";
@@ -13,6 +12,7 @@ import { HSModuleOptions } from "../../types/hs-types";
 import { HSGameDataAPI } from "../hs-core/gds/hs-gamedata-api";
 import type { HSGameData } from "../hs-core/gds/hs-gamedata";
 import { parseGameDataNumber } from "../hs-core/gds/hs-gamedata-utils";
+import { HSGameDialogs } from "../hs-core/dialogs/hs-game-dialogs";
 
 type AscensionIncomeSnapshot = {
     perSecond: number;
@@ -505,26 +505,22 @@ export class HSHepteracts extends HSModule {
                                 return;
                             }
 
-                            // This is the small "ON/OFF" toggle button which is used to enable/disable the hepteract buy notifications
-                            const hepteractBuyNotificationToggle = await HSElementHooker.HookElement('#toggle35') as HTMLButtonElement;
-
-                            // Read the toggle state, not its text (translated: e.g. OUI/NON in French, where "NON" contains "ON")
-                            const isNotificationOn = hepteractBuyNotificationToggle
-                                && (HSGlobal.exposedPlayer?.toggles?.[35]
-                                    ?? hepteractBuyNotificationToggle.style.border.includes('green'));
-                            if (isNotificationOn) {
-                                HSLogger.info(`Turned hepteract notification toggle OFF`, this.context);
-                                hepteractBuyNotificationToggle.click();
+                            // With a dialog open, the cap's Confirm would wait behind it, and Craft Max (no Confirm
+                            // when the game's #toggle35 is off) would craft before the expansion
+                            if (!HSGameDialogs.isQueueIdle()) {
+                                HSLogger.info(`Quick expand cancelled: close the open game dialog first`, this.context);
+                                self.#expandPending = false;
+                                return;
                             }
 
-                            // Perform our cap- and max button clicking
-                            await HSUtils.hiddenAction(async () => {
-                                capBtn.click();
-                            }, "confirm", false, 25);
+                            // Cap: its Confirm is answered, its Alert dismissed (shown when #toggle35 is on)
+                            HSGameDialogs.act('hepteractQuickExpand', { confirm: 'ok', alert: 'dismiss' }, () => capBtn.click());
 
+                            // The game expands once its Confirm is answered, after an await: Craft Max must come after
                             await HSUtils.wait(25);
 
-                            craftMaxBtn.click();
+                            // Craft Max: same for its Confirm and Alerts (#toggle35 on)
+                            HSGameDialogs.act('hepteractQuickExpand', { confirm: 'ok', alert: 'dismiss' }, () => craftMaxBtn.click());
 
                             await HSUtils.wait(5);
 

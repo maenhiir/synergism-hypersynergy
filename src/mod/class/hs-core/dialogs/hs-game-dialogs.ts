@@ -10,6 +10,8 @@ export interface HSDialogAnswers {
     confirm?: 'ok' | 'cancel' | 'show';
     alert?: 'dismiss' | 'show';
     infoAlert?: 'dismiss' | 'show';
+    // { ok }: a value typed for one Prompt, so it answers only the first Prompt of its act (e.g. the Add code's
+    // amount, not the sum Prompt that follows). Later Prompts aren't claimed.
     prompt?: { ok: string } | 'cancel' | 'show';
     // The mod can't build a purchase quote: buying goes through the shown dialog
     purchasePrompt?: 'cancel' | 'show';
@@ -93,6 +95,7 @@ export class HSGameDialogs {
     static #boxOpen = false;
 
     static #autosingActive = false;
+    static #watcherInterval: number | null = null;
     static #origins = new WeakSet<HSDialogOrigin>();
     static #actWindows: HSActWindow[] = [];
     static #taskEndChannel: MessageChannel | null = null;
@@ -100,6 +103,7 @@ export class HSGameDialogs {
 
     static #lockHolder: HSDialogSession | null = null;
     static #waiters: (() => void)[] = [];
+    static #idleWaiters: (() => void)[] = [];
 
     static #domIds: Record<HSDialogKind, { wrapper: string, ok: string, cancel?: string }> = {
         confirm: { wrapper: 'confirmWrapper', ok: 'ok_confirm', cancel: 'cancel_confirm' },
@@ -140,19 +144,34 @@ export class HSGameDialogs {
 
     /**
      * Set by autosing for its run (Restart included). With the hook, every Confirm and Alert queued meanwhile
-     * is answered (OK, dismissed), unless a session claims it. Without the hook, autosing uses
-     * __HS_AUTO_CONFIRM or the dialog watcher instead.
+     * is answered (OK, dismissed), unless a session claims it. With an older patcher, autosing uses
+     * __HS_AUTO_CONFIRM instead (HSAutosingSettingsFixer). Without any patch (bookmarklet), the dialog watcher
+     * clicks them for as long as autosing is active.
      */
     static setAutosingActive(active: boolean): void {
         HSGameDialogs.#autosingActive = active;
+        const needsWatcher = active && !HSGameDialogs.#hookPatched && !(window as any).__HS_AUTO_CONFIRM_PATCHED;
+        if (needsWatcher) HSGameDialogs.#startWatcher();
+        else HSGameDialogs.#stopWatcher();
+    }
+
+    /** No dialog is open. Every queued dialog is shown inside #confirmationBox, so a hidden box means an empty queue. */
+    static isQueueIdle(): boolean {
+        return HSGameDialogs.#box?.style.getPropertyValue('display') !== 'block';
     }
 
     /**
-     * No dialog is open. Every queued dialog is shown inside #confirmationBox, so a hidden box means an empty queue.
-     * Reads the real inline value: HSUtils.hiddenAction() fakes style.display while it runs.
+     * Resolves once the queue is idle, checked one task later: by then, the current action has queued its
+     * dialogs, and those answered at once have chained theirs. Dialogs shown meanwhile (e.g. one waiting for
+     * the player) delay it until the last one closes. Takes no lock.
      */
-    static isQueueIdle(): boolean {
-        return HSGameDialogs.#box?.style.getPropertyValue('display') !== 'block';
+    static whenQueueIdle(): Promise<void> {
+        return new Promise(resolve => {
+            window.setTimeout(() => {
+                if (HSGameDialogs.isQueueIdle()) resolve();
+                else HSGameDialogs.#idleWaiters.push(resolve);
+            }, 0);
+        });
     }
 
     /**
@@ -199,9 +218,15 @@ export class HSGameDialogs {
         const actWindow: HSActWindow = { session, answers, event: window.event, running: true };
         HSGameDialogs.#actWindows.push(actWindow);
         HSGameDialogs.#scheduleTaskEnd();
+        const wasIdle = HSGameDialogs.isQueueIdle();
         try {
             fn();
         } finally {
+            // Without the hook: a dialog fn opened is answered now, while this act still claims it. The observer
+            // would answer it only at the next microtask checkpoint: inside a synthetic click nested in a player's
+            // click (Auto-Loadout's quickbar click), that's after the player's listener, under another window.event.
+            // Only a dialog fn opened (the queue was idle): never one that was already shown.
+            if (!HSGameDialogs.#hookPatched && wasIdle && !HSGameDialogs.isQueueIdle()) HSGameDialogs.#answerShownByDom();
             actWindow.running = false;
         }
     }
@@ -215,7 +240,7 @@ export class HSGameDialogs {
      */
     static #getOrigin(kind: HSDialogKind): HSDialogOrigin | undefined {
         try {
-            const claim = HSGameDialogs.#findClaim(kind, window.event);
+            const claim = HSGameDialogs.#claim(kind, window.event);
             const origin: HSDialogOrigin = claim
                 ? { session: claim.session, answers: claim.answers, autosing: HSGameDialogs.#autosingActive }
                 : { autosing: HSGameDialogs.#autosingActive };
@@ -227,12 +252,22 @@ export class HSGameDialogs {
         }
     }
 
-    static #findClaim(kind: HSDialogKind, event: Event | undefined): HSActWindow | undefined {
+    /**
+     * The act window claiming a dialog of this kind, with the answers it had then.
+     * A prompt value ({ ok }) is used up by the first Prompt it claims.
+     */
+    static #claim(kind: HSDialogKind, event: Event | undefined): { session: HSDialogSession, answers: HSDialogAnswers } | undefined {
         const windows = HSGameDialogs.#actWindows;
         for (let i = windows.length - 1; i >= 0; i--) {
             const actWindow = windows[i];
             if (actWindow.answers[kind] === undefined) continue;
-            if (actWindow.running || actWindow.event === event) return actWindow;
+            if (!actWindow.running && actWindow.event !== event) continue;
+
+            const answers = actWindow.answers;
+            if (kind === 'prompt' && typeof answers.prompt === 'object') {
+                actWindow.answers = { ...answers, prompt: undefined };
+            }
+            return { session: actWindow.session, answers };
         }
         return undefined;
     }
@@ -320,7 +355,17 @@ export class HSGameDialogs {
             return;
         }
         // One step later: the next queued dialog (or the next one of a chain) may open right after this one closed
-        window.setTimeout(() => HSGameDialogs.#pump(), 0);
+        window.setTimeout(() => {
+            HSGameDialogs.#pump();
+            HSGameDialogs.#releaseIdleWaiters();
+        }, 0);
+    }
+
+    static #releaseIdleWaiters(): void {
+        if (HSGameDialogs.#idleWaiters.length === 0 || !HSGameDialogs.isQueueIdle()) return;
+        const waiters = HSGameDialogs.#idleWaiters;
+        HSGameDialogs.#idleWaiters = [];
+        for (const resolve of waiters) resolve();
     }
 
     /** Without the hook: a session answers its dialog through the DOM once it's shown. */
@@ -328,7 +373,7 @@ export class HSGameDialogs {
         const kind = (Object.keys(HSGameDialogs.#domIds) as HSDialogKind[])
             .find(k => document.getElementById(HSGameDialogs.#domIds[k].wrapper)?.style.display === 'block');
         if (!kind) return;
-        const claim = HSGameDialogs.#findClaim(kind, window.event);
+        const claim = HSGameDialogs.#claim(kind, window.event);
         if (!claim) return;
         const answer = claim.answers[kind];
         if (answer === undefined || answer === 'show') return;
@@ -340,6 +385,32 @@ export class HSGameDialogs {
         }
         const buttonId = answer === 'cancel' ? ids.cancel : ids.ok;
         if (buttonId) (document.getElementById(buttonId) as HTMLButtonElement | null)?.click();
+    }
+
+    // ── Dialog watcher (no patch at all) ─────────────────────────────────────────────────────────────
+
+    /**
+     * Clicks OK on every visible Confirm and Alert, as the hook's autosing policy answers them.
+     * Polls: without the hook, dialogs chained after an answer may open without the box ever closing.
+     */
+    static #startWatcher(): void {
+        if (HSGameDialogs.#watcherInterval !== null) return;
+        HSLogger.debug(() => 'Dialog watcher started', HSGameDialogs.#context);
+        const kinds: HSDialogKind[] = ['confirm', 'alert'];
+        HSGameDialogs.#watcherInterval = window.setInterval(() => {
+            for (const kind of kinds) {
+                const ids = HSGameDialogs.#domIds[kind];
+                if (document.getElementById(ids.wrapper)?.style.display !== 'block') continue;
+                (document.getElementById(ids.ok) as HTMLButtonElement | null)?.click();
+            }
+        }, 5);
+    }
+
+    static #stopWatcher(): void {
+        if (HSGameDialogs.#watcherInterval === null) return;
+        window.clearInterval(HSGameDialogs.#watcherInterval);
+        HSGameDialogs.#watcherInterval = null;
+        HSLogger.debug(() => 'Dialog watcher stopped', HSGameDialogs.#context);
     }
 
     // ── Lock ─────────────────────────────────────────────────────────────────────────────────────────
