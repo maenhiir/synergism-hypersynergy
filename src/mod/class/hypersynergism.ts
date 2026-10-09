@@ -16,6 +16,7 @@ import { HSAmbrosia } from "./hs-modules/hs-ambrosia";
 import { HSHeaterInputModalController } from "./hs-modules/hs-heater/hs-heater-input-modal-controller";
 import { HSUtils } from "./hs-utils/hs-utils";
 import { HSGithub } from "./hs-core/github/hs-github";
+import { HSGameDialogs } from "./hs-core/dialogs/hs-game-dialogs";
 
 /**
  * Class: Hypersynergism
@@ -55,6 +56,9 @@ export class Hypersynergism {
 
         // Now that game is ready, we can process modules (which might init immediate modules like HSUI)
         await this.preprocessModules();
+        // After preprocessModules(), which attaches HSLogger to the panel (it drops panel logs written before that),
+        // and before the feature modules, which may click game buttons that open dialogs
+        HSGameDialogs.init();
         await this.#moduleManager.initModules();
 
         HSLogger.log("Building UI Panel", this.#context);

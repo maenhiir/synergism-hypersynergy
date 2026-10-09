@@ -352,53 +352,69 @@ function patchBundle(code, options = {}) {
     }
 
     // ==================================================================================
-    // ── AUTO-CONFIRM PATCH — make Confirm/Alert auto-resolve when window.__HS_AUTO_CONFIRM is set to true
-    // Confirm resolves true (OK clicked) and Alert resolves void, bypassing all DOM/queue overhead.
-    // 'Unique' anchors: 'confirmationBox' appears exactly 3× in the bundle: 1st = Confirm body, 2nd = Alert body, 3rd = Prompt.
-    // We use the 1st for Confirm and 2nd for Alert. Walk back to the `() => {` of the enqueue action.
-    // Toggle: window.__HS_AUTO_CONFIRM = true (no pop-up) / false (normal play with pop-ups).
+    // ── DIALOG HOOK PATCH — let the mod see every game dialog when it's queued, and answer it before it's shown.
+    // The 5 dialog functions (Confirm, Alert, InfoAlert, Prompt, PurchasePrompt) share one queue and one shape:
+    //   je=async e=>Jf.enqueue(()=>{let t=c("confirmationBox"),r=c("confirmWrapper"), …
+    // Each one is found by its own wrapper id (DOM ids the mod already relies on), whatever their order.
+    // 1. An extra default parameter records the dialog's origin when it's queued (defaults are evaluated at call time):
+    //    e=>  becomes  (e,__hsO=window.__HS_dialogOrigin?.("confirm",e))=>
+    // 2. At the start of the queued action (when the dialog reaches the front of the queue), the mod may answer it:
+    //    window.__HS_onDialog(kind, origin) returns { value } to resolve the dialog without showing it, or undefined to show it.
+    // Without the mod's hook (older mod), window.__HS_AUTO_CONFIRM still auto-answers Confirm and Alert, as the old patch did.
+    // All 5 or none: with a partial match, the mod falls back to clicking dialogs through the DOM.
     try {
-        const cbRe = /['"]confirmationBox['"]/g;
-        const cbMatch1 = cbRe.exec(code);
-        const cbMatch2 = cbMatch1 ? cbRe.exec(code) : null;
+        const dialogKinds = {
+            confirmWrapper: 'confirm',
+            alertWrapper: 'alert',
+            infoAlertWrapper: 'infoAlert',
+            promptWrapper: 'prompt',
+            purchasePromptWrapper: 'purchasePrompt'
+        };
+        // Old mod versions only know __HS_AUTO_CONFIRM, for these two kinds
+        const legacyAnswers = { confirm: '!0', alert: 'void 0' };
+        const dialogRe = /(?<![\w$])[\w$]+\s*=\s*(?:async\s*)?(\([^)]*\)|[\w$]+)\s*=>\s*[\w$.]+\.enqueue\(\s*\(\s*\)\s*=>\s*(\{)\s*(?:let|const|var)\s+[\w$]+\s*=\s*[\w$]+\(\s*["']confirmationBox["']\s*\)\s*,\s*[\w$]+\s*=\s*[\w$]+\(\s*["'](confirmWrapper|alertWrapper|infoAlertWrapper|promptWrapper|purchasePromptWrapper)["']\s*\)/dg;
 
-        // Collect both patch sites against the unmodified code, then apply highest-index first
-        // so earlier insertions don't invalidate later indices.
-        const autoConfirmSites = [];
-        if (cbMatch1) {
-            const backCtx = code.slice(Math.max(0, cbMatch1.index - 200), cbMatch1.index);
-            const lastArrow = [...backCtx.matchAll(/\(\s*\)\s*=>\s*\{/g)].at(-1);
-            if (lastArrow) {
-                autoConfirmSites.push({
-                    bodyStart: (cbMatch1.index - backCtx.length) + lastArrow.index + lastArrow[0].length,
-                    inject: `\nif(window.__HS_AUTO_CONFIRM)return Promise.resolve(!0);\n`,
-                    label: 'Confirm'
-                });
-            } else { warn('autoConfirm: could not find Confirm action body start'); }
-        } else { warn('Could not patch Confirm — confirmationBox anchor not found'); }
-
-        if (cbMatch2) {
-            const backCtx = code.slice(Math.max(0, cbMatch2.index - 200), cbMatch2.index);
-            const lastArrow = [...backCtx.matchAll(/\(\s*\)\s*=>\s*\{/g)].at(-1);
-            if (lastArrow) {
-                autoConfirmSites.push({
-                    bodyStart: (cbMatch2.index - backCtx.length) + lastArrow.index + lastArrow[0].length,
-                    inject: `\nif(window.__HS_AUTO_CONFIRM)return Promise.resolve(void 0);\n`,
-                    label: 'Alert'
-                });
-            } else { warn('autoConfirm: could not find Alert action body start'); }
-        } else { warn('Could not patch Alert — second confirmationBox anchor not found'); }
-
-        autoConfirmSites.sort((a, b) => b.bodyStart - a.bodyStart);
-        for (const site of autoConfirmSites) {
-            code = code.slice(0, site.bodyStart) + site.inject + code.slice(site.bodyStart);
-            log(`Patched ${site.label} (auto-confirm support)`);
+        const sites = [];
+        let m;
+        while ((m = dialogRe.exec(code)) !== null) {
+            const [paramsStart, paramsEnd] = m.indices[1];
+            sites.push({ kind: dialogKinds[m[3]], params: m[1], paramsStart, paramsEnd, bodyStart: m.indices[2][1] });
         }
-        if (autoConfirmSites.length === 2) {
-            code = 'window.__HS_AUTO_CONFIRM_PATCHED = true;\n' + code;
+
+        const foundKinds = sites.map(site => site.kind);
+        const allFoundOnce = Object.values(dialogKinds).every(kind => foundKinds.filter(k => k === kind).length === 1);
+        if (!allFoundOnce) {
+            warn(`Could not patch the game dialogs — expected each of the 5 once, found: [${foundKinds.join(', ')}]`);
+        } else {
+            // Highest index first, so earlier insertions don't move later ones
+            const edits = [];
+            for (const site of sites) {
+                const list = site.params.startsWith('(') ? site.params.slice(1, -1).trim() : site.params.trim();
+                const firstParam = list.split(',')[0].trim();
+                const originArgs = /^[\w$]+$/.test(firstParam) ? `"${site.kind}",${firstParam}` : `"${site.kind}"`;
+                const originParam = `__hsO=window.__HS_dialogOrigin?.(${originArgs})`;
+                edits.push({
+                    start: site.paramsStart, end: site.paramsEnd,
+                    text: `(${list ? `${list},` : ''}${originParam})`
+                });
+                const legacy = legacyAnswers[site.kind];
+                edits.push({
+                    start: site.bodyStart, end: site.bodyStart,
+                    text: `\nconst __hsA=window.__HS_onDialog?.("${site.kind}",__hsO);if(__hsA)return Promise.resolve(__hsA.value);` +
+                        (legacy ? `if(!window.__HS_onDialog&&window.__HS_AUTO_CONFIRM)return Promise.resolve(${legacy});` : '') +
+                        `\n`
+                });
+            }
+            edits.sort((a, b) => b.start - a.start);
+            for (const edit of edits) {
+                code = code.slice(0, edit.start) + edit.text + code.slice(edit.end);
+            }
+            // __HS_AUTO_CONFIRM_PATCHED: older mod versions check it before relying on __HS_AUTO_CONFIRM
+            code = 'window.__HS_DIALOG_HOOK_PATCHED = true;window.__HS_AUTO_CONFIRM_PATCHED = true;\n' + code;
+            log('Patched the 5 game dialogs (dialog hook)');
         }
     } catch (e) {
-        warn('Error while patching Confirm/Alert', e);
+        warn('Error while patching the game dialogs', e);
     }
 
     // ==================================================================================
@@ -811,6 +827,7 @@ function startBrowserLoader(options) {
                         `exportOutputPatched: !!window.__HS_EXPORT_OUTPUT_PATCHED,` +
                         `getMaxChallenges:    typeof window.__HS_getMaxChallenges,` +
                         `applyCorruptions:    typeof window.__HS_applyCorruptions,` +
+                        `dialogHookPatched:   !!window.__HS_DIALOG_HOOK_PATCHED,` +
                         `tackHooks:           Array.isArray(window.__HS_tackHooks) ? window.__HS_tackHooks.length : 'n/a'` +
                     `};` +
                 `}` +
