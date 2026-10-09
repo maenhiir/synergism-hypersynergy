@@ -573,10 +573,9 @@ export class HSAutosing extends HSModule {
             return;
         }
         if (this.#isInExalt()) {
-            HSLogger.debug(() => "Cannot start Auto-Sing while inside a singularity challenge.", this.context);
-            HSUI.Notify("Cannot start Auto-Sing while inside a singularity challenge", { notificationType: 'warning' });
-            this.stopAutosing();
-            return;
+            const hasLeft = await this.#leaveExaltAtStart();
+            if (this.#isStartCancelled()) return;
+            if (!hasLeft) { this.stopAutosing(); return; }
         }
 
         // From here, the game's Confirms and Alerts are answered (by the dialog hook, or by the dialog watcher
@@ -1647,6 +1646,50 @@ export class HSAutosing extends HSModule {
         } finally {
             this.#exaltStep = 'none';
         }
+    }
+
+    /**
+     * Started inside an Exalt: asks the player whether to leave it. window.confirm blocks the page, so nothing
+     * changes before the answer. The player said yes: the game's exit dialogs are answered (without Antiquities,
+     * the Exalt run is lost). #waitForExaltState() can't be used yet (autosing isn't marked as running).
+     * @returns true once outside the Exalt
+     */
+    async #leaveExaltAtStart(): Promise<boolean> {
+        if (!window.confirm("You are inside an Exalt. Leave it and start Auto-Sing?\n\nWithout Antiquities, the Exalt is not completed.")) {
+            HSLogger.log("Auto-Sing not started: the player stays inside the Exalt.", this.context);
+            return false;
+        }
+
+        const exaltBtn = this.#getActiveExaltElement();
+        if (!exaltBtn) {
+            HSLogger.warn("Could not find the active Exalt to leave it.", this.context);
+            HSUI.Notify("Auto-Sing could not leave the Exalt. Leave it yourself, then start Auto-Sing again.", { notificationType: 'warning' });
+            return false;
+        }
+        HSLogger.log(`Leaving the Exalt (${exaltBtn.id}) before starting.`, this.context);
+        HSGameDialogs.act('autosing', { confirm: 'ok', alert: 'dismiss' }, () => exaltBtn.click());
+
+        const deadline = performance.now() + 5000;
+        while (this.#isInExalt()) {
+            if (this.#startCancelled) return false;
+            if (performance.now() > deadline) {
+                HSLogger.warn("Still inside the Exalt 5 s after leaving it.", this.context);
+                HSUI.Notify("Auto-Sing could not leave the Exalt. Leave it yourself, then start Auto-Sing again.", { notificationType: 'warning' });
+                return false;
+            }
+            await HSUtils.sleep(50);
+        }
+        return true;
+    }
+
+    /** The active Exalt's icon (its id is the challenge's key): the game colours it orchid. */
+    #getActiveExaltElement(): HTMLElement | null {
+        const challenges = HSGlobal.exposedPlayer?.singularityChallenges;
+        if (challenges) {
+            const key = Object.keys(challenges).find(k => challenges[k as keyof typeof challenges]?.enabled);
+            return key ? document.getElementById(key) : null;
+        }
+        return document.querySelector<HTMLElement>('#singularityChallenges img.challenge[style*="background-color: orchid"]');
     }
 
 
