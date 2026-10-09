@@ -44,14 +44,14 @@ export class HSSettingActions {
             }
         },
 
-        // Auto validate Confirm & Alert (not Prompt)
+        // Auto validate Confirm & Alert (not Prompt). Only has an effect without the dialog hook (old patcher):
+        // with the hook, the patcher leaves the answers to HSGameDialogs.
         autoConfirmPopups: async (params: HSSettingActionParams) => {
             const context = params.contextName ?? "HSSettings";
             if (params.disable && params.disable === true) {
                 HSUtils.setAutoConfirm(false);
             } else {
-                const isAutoConfirmPatched = HSUtils.isAutoConfirmPatched();
-                if (isAutoConfirmPatched) {
+                if (HSUtils.isAutoConfirmPatched()) {
                     HSUtils.setAutoConfirm(true);
                 } else {
                     HSLogger.warn("autoConfirmPopups enabled, but __HS_AUTO_CONFIRM not patched", context);

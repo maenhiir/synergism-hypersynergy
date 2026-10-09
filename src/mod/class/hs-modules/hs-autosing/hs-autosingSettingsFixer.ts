@@ -9,6 +9,7 @@ import { HSUtils } from '../../hs-utils/hs-utils';
 import { HSGlobal } from '../../hs-core/hs-global';
 import { isTesseractAutoBuyPercentageMode } from '../../hs-core/gds/hs-gamedata-utils';
 import { PlayerData } from '../../../types/data-types/hs-player-savedata';
+import { HSGameDialogs } from '../../hs-core/dialogs/hs-game-dialogs';
 
 /**
  * Class: HSAutosingSettingsFixer
@@ -483,16 +484,19 @@ export class HSAutosingSettingsFixer {
                 HSLogger.debug(() => `disableUnwantedSettings: disabled "${settingKey}"`, HSAutosingSettingsFixer.#context);
             }
         }
-        // Enable autoConfirmPopups for autosing. Tracked with '+' prefix so restore knows to disable it.
-        const autoConfirmSetting = HSSettings.getSetting('autoConfirmPopups');
-        if (autoConfirmSetting) {
-            if (!autoConfirmSetting.isEnabled()) {
-                autoConfirmSetting.enable();
-                disabledSettings.push('+autoConfirmPopups');
-                HSLogger.debug(() => `disableUnwantedSettings: enabled "autoConfirmPopups" for autosing`, HSAutosingSettingsFixer.#context);
+        // Without the dialog hook only (older patcher): enable autoConfirmPopups for autosing. With the hook,
+        // HSGameDialogs answers autosing's dialogs. Tracked with '+' prefix so restore knows to disable it.
+        if (!HSGameDialogs.isHookPatched()) {
+            const autoConfirmSetting = HSSettings.getSetting('autoConfirmPopups');
+            if (autoConfirmSetting) {
+                if (!autoConfirmSetting.isEnabled()) {
+                    autoConfirmSetting.enable();
+                    disabledSettings.push('+autoConfirmPopups');
+                    HSLogger.debug(() => `disableUnwantedSettings: enabled "autoConfirmPopups" for autosing`, HSAutosingSettingsFixer.#context);
+                }
+            } else {
+                HSLogger.warn(`disableUnwantedSettings: setting "autoConfirmPopups" not found`, HSAutosingSettingsFixer.#context);
             }
-        } else {
-            HSLogger.warn(`disableUnwantedSettings: setting "autoConfirmPopups" not found`, HSAutosingSettingsFixer.#context);
         }
 
         if (disabledSettings.length > 0) {

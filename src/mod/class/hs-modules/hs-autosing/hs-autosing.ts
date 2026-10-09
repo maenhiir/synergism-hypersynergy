@@ -16,6 +16,7 @@ import { HSAutosingSettingsFixer } from './hs-autosingSettingsFixer';
 import { HSAutosingCorruption, CORRUPTION_NAMES, ZERO_CORRUPTIONS, ANT_CORRUPTIONS } from './hs-autosingCorruption';
 import { HSQuickbarManager } from "../hs-qol-quickbar/hs-qolQuickbarManager";
 import { ELogLevel } from "../../../types/module-types/hs-logger-types";
+import { HSGameDialogs } from "../../hs-core/dialogs/hs-game-dialogs";
 
 const SPECIAL_ACTION_LABEL_BY_ID = new Map<number, string>(SPECIAL_ACTIONS.map((a) => [a.value, a.label] as const));
 const STAGE_REGEX = /Current Game Section:\s*(.+)/;
@@ -460,11 +461,12 @@ export class HSAutosing extends HSModule {
         this.#exposedPlayer = HSGlobal.exposedPlayer ?? null;
         this.#stageFunc = (window as any).__HS_synergismStage ?? null;
         this.#getMaxChallengesFunc = (window as any).__HS_getMaxChallenges ?? null;
-        const isAutoConfirmPatched = (window as any).__HS_AUTO_CONFIRM_PATCHED ?? false;
         const isAfterTackHooked = HSUtils.cacheAfterTackHook();
 
-        // We need either __HS_AUTO_CONFIRM or startDialogWatcher
-        if (!isAutoConfirmPatched) HSUtils.startDialogWatcher(5);
+        // Autosing's dialogs are answered by the dialog hook (HSGameDialogs), or by an older patcher's
+        // auto-confirm (__HS_AUTO_CONFIRM, see HSAutosingSettingsFixer). Without either, the dialog watcher clicks them.
+        const areDialogsAnswered = HSGameDialogs.isHookPatched() || HSUtils.isAutoConfirmPatched();
+        if (!areDialogsAnswered) HSUtils.startDialogWatcher(5);
 
         // Triggering the late setCorruptions patch in order to check if it's available (could be done at mod load...)
         await this.#corruptionManager.setCorruptions(ZERO_CORRUPTIONS);
@@ -473,7 +475,7 @@ export class HSAutosing extends HSModule {
         this.#applyCorruptionsFunc = (window as any).__HS_applyCorruptions ?? null;
         this.#corruptionManager.setApplyCorruptionsFunc(this.#applyCorruptionsFunc ?? null);
 
-        this.#isExposureReady = !!(this.#stageFunc && this.#exposedPlayer && this.#getMaxChallengesFunc && isAutoConfirmPatched && isAfterTackHooked && this.#applyCorruptionsFunc);
+        this.#isExposureReady = !!(this.#stageFunc && this.#exposedPlayer && this.#getMaxChallengesFunc && areDialogsAnswered && isAfterTackHooked && this.#applyCorruptionsFunc);
 
         // Not required for the fast mode: without it, only the quark export at the end of each singularity is skipped
         const isExportOutputPatched = !!(window as any).__HS_EXPORT_OUTPUT_PATCHED;
@@ -483,7 +485,8 @@ export class HSAutosing extends HSModule {
             getMaxChallengesFunc: ${!!this.#getMaxChallengesFunc},
             onAfterTackHook: ${isAfterTackHooked},
             applyCorruptionsFunc: ${!!this.#applyCorruptionsFunc},
-            autoConfirmPatched: ${isAutoConfirmPatched},
+            dialogHook: ${HSGameDialogs.isHookPatched()},
+            autoConfirmPatched: ${HSUtils.isAutoConfirmPatched()},
             exportOutputPatched: ${isExportOutputPatched})`;
         if (this.#isExposureReady) HSLogger.debug(() => exposureMsg, this.context);
         else HSLogger.warn(exposureMsg, this.context);
@@ -581,7 +584,9 @@ export class HSAutosing extends HSModule {
             return;
         }
 
-        // This needs to be done before cacheExposedFunctions since it enables __HS_AUTO_CONFIRM.
+        // From here, the game's Confirms and Alerts are answered (with the dialog hook). Cleared by #restoreHsSettings().
+        HSGameDialogs.setAutosingActive(true);
+        // This needs to be done before cacheExposedFunctions since it enables __HS_AUTO_CONFIRM (without the hook).
         // Appended: after a restart, the list still holds what the previous run changed (kept changed meanwhile)
         this.#hsSettingsToRestore = [...this.#hsSettingsToRestore, ...await HSAutosingSettingsFixer.fixAllSettings()];
         if (this.#isStartCancelled()) return;
@@ -688,8 +693,12 @@ export class HSAutosing extends HSModule {
         }
     }
 
-    /** Resumes the GDS engine and restores the mod settings changed by HSAutosingSettingsFixer. */
+    /**
+     * Resumes the GDS engine, restores the mod settings changed by HSAutosingSettingsFixer,
+     * and stops answering the game's dialogs.
+     */
     #restoreHsSettings(): void {
+        HSGameDialogs.setAutosingActive(false);
         void HSModuleManager.getModule<HSGameData>('HSGameData')?.resumeGDS(HSAutosingSettingsFixer.GDS_PAUSE_REASON);
         HSAutosingSettingsFixer.restoreUnwantedSettings(this.#hsSettingsToRestore);
         // Cleared so a later stop can't restore them a second time
@@ -700,11 +709,12 @@ export class HSAutosing extends HSModule {
         this.#autosingEnabled = false;
 
         // Stopped between entering Exalt 2 and leaving it: leave it, or the player stays inside.
-        // Clicked before stopAutosing() restores the settings: auto-confirm (or the dialog watcher) still
-        // answers its Confirm, and stopDialogWatcher() at the end of this stop clicks its Alert away.
+        // Its own session answers its dialogs: the exit Alert is queued after stopAutosing() has stopped
+        // autosing's answering. Without the hook, auto-confirm (or the dialog watcher) still answers the Confirm,
+        // and stopDialogWatcher() at the end of this stop clicks the Alert away.
         if (this.#exaltStep === 'entering' && this.#isInExalt()) {
             HSLogger.log('Autosing stopped inside Exalt 2: leaving it.', this.context);
-            this.#exalt2Btn.click();
+            HSGameDialogs.act('autosing', { confirm: 'ok', alert: 'dismiss' }, () => this.#exalt2Btn.click());
         }
         this.#exaltStep = 'none';
         this.#saveType.checked = false;
@@ -753,7 +763,8 @@ export class HSAutosing extends HSModule {
                 this.#autosingModal = undefined;
             }
         }
-        await HSUtils.stopDialogWatcher();
+        // Without the hook only: it clicks OK on every visible Confirm and Alert, the player's included
+        if (!HSGameDialogs.isHookPatched()) await HSUtils.stopDialogWatcher();
     }
 
     public closeAutosingModalAfterReview(): void {
@@ -1582,6 +1593,9 @@ export class HSAutosing extends HSModule {
             }
             return;
         }
+        // Stopped while leaving the Exalt: don't record the singularity or switch the loadout
+        // (its Alert would be shown, autosing's answering has stopped)
+        if (!this.#autosingEnabled) return;
 
         this.#endStageDone = false;
         this.#antiquitiesObserverActivated = false;

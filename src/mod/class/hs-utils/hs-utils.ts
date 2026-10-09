@@ -24,17 +24,11 @@ export class HSUtils {
     static dialogWatcherTime = 5; // More than that ?
     static tackTime = 5; // for bookmark/steam (no tack hook)
 
-    static #autoConfirmPatchState: boolean | null = null;
     static #_onAfterTack: ((fn: () => void) => void) | null = null;
 
-    static cacheAutoConfirmPatchState(): boolean {
-        const patched = (window as any).__HS_AUTO_CONFIRM_PATCHED ?? false;
-        HSUtils.#autoConfirmPatchState = patched;
-        return patched;
-    }
-
+    /** The patcher honours __HS_AUTO_CONFIRM (Confirm and Alert). Set before the mod loads, by any patcher version. */
     static isAutoConfirmPatched(): boolean {
-        return HSUtils.#autoConfirmPatchState ?? HSUtils.cacheAutoConfirmPatchState();
+        return !!(window as any).__HS_AUTO_CONFIRM_PATCHED;
     }
 
     static setAutoConfirm(value: boolean): void {

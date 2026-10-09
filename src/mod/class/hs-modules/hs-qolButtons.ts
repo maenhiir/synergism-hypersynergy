@@ -631,6 +631,7 @@ export class HSQOLButtons extends HSModule {
                     // Their share goes to the other upgrades, or stays unspent with "Keep the share of skipped upgrades".
                     const gqHelper = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.goldenQuark;
                     const skipped: string[] = [];
+                    const nextLevelCostById = new Map<string, number>();
                     const buyableIds = Object.keys(ratios).filter((id) => {
                         if (!gqHelper) return true;
                         const key = id as GoldenQuarkUpgradeKey;
@@ -645,6 +646,7 @@ export class HSQOLButtons extends HSModule {
                             skipped.push(`${id} (not enough GQ)`);
                             return false;
                         }
+                        nextLevelCostById.set(id, nextLevelCost);
                         return true;
                     });
                     if (buyableIds.length === 0) {
@@ -749,6 +751,14 @@ export class HSQOLButtons extends HSModule {
                         setStatus(`Buying ${current}/${buyableIds.length} — spending ${amountToSpend.toLocaleString()} GQ…`);
 
                         if (amountToSpend <= 0) { setStatus(`Skipped ${current}/${buyableIds.length} (0 GQ)`); continue; }
+                        // Checked here, not left to the purchase dialog: the game refuses with an alert instead of
+                        // opening it when the balance left after the previous purchases can't buy a level.
+                        // The balance always covers what's left to spend, so an allocation that buys a level can't be refused.
+                        if (amountToSpend < (nextLevelCostById.get(id) ?? 0)) {
+                            skipped.push(`${id} (allocation cannot buy a level)`);
+                            setStatus(`Skipped ${current}/${buyableIds.length} (allocation cannot buy a level)`);
+                            continue;
+                        }
 
                         const btn = document.getElementById(id) as HTMLButtonElement;
                         if (!btn) continue;

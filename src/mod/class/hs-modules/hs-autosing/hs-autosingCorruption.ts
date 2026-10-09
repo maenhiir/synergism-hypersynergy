@@ -2,6 +2,7 @@ import { CorruptionLoadout, CorruptionLoadoutDefinition, AutosingStrategyPhase }
 import { HSLogger } from "../../hs-core/hs-logger";
 import { HSGlobal } from "../../hs-core/hs-global";
 import { HSUtils } from "../../hs-utils/hs-utils";
+import { HSGameDialogs } from "../../hs-core/dialogs/hs-game-dialogs";
 
 export const CORRUPTION_NAMES = ['viscosity', 'drought', 'deflation', 'extinction', 'illiteracy', 'recession', 'dilation', 'hyperchallenge'] as const;
 
@@ -17,6 +18,7 @@ export const ANT_CORRUPTIONS: CorruptionLoadout = {
 
 export class HSAutosingCorruption {
     static readonly #DOM_IMPORT_TIMEOUT_MS = 2000;
+    static readonly #DOM_IMPORT_MAX_CLICKS = 5;
     readonly #context = 'HSAutosingCorruption';
 
     readonly #corrNext: Record<string, HTMLElement | null>;
@@ -81,12 +83,18 @@ export class HSAutosingCorruption {
         }
 
         // DOM Fallback. Time-limited: it would otherwise click forever if the import never matches
-        // (also after autosing has stopped, and a new start waits for autosing's chains to end)
+        // (also after autosing has stopped, and a new start waits for autosing's chains to end).
+        // Clicks import only while no dialog is open, a few times at most: with a dialog open, each click
+        // would queue one more import Prompt, all shown later.
         const deadline = performance.now() + HSAutosingCorruption.#DOM_IMPORT_TIMEOUT_MS;
+        let importClicks = 0;
         while (true) {
-            this.#importBtn.click();
-            this.#corruptionPromptInput.value = jsonString;
-            this.#corruptionPromptOkBtn.click();
+            if (importClicks < HSAutosingCorruption.#DOM_IMPORT_MAX_CLICKS && HSGameDialogs.isQueueIdle()) {
+                importClicks++;
+                this.#importBtn.click();
+                this.#corruptionPromptInput.value = jsonString;
+                this.#corruptionPromptOkBtn.click();
+            }
             await HSUtils.yield();
             if (this.#corruptionsMatchDOM(corruptions)) {
                 this.#lastAppliedCorruptionsJson = jsonString;

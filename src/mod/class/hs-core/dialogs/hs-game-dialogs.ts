@@ -20,14 +20,13 @@ type HSDialogAnswer = NonNullable<HSDialogAnswers[HSDialogKind]>;
 export interface HSDialogRunOptions {
     /** The lock is released and the session ended past this time (default 30 s). */
     timeLimitMs?: number;
-    /** Goes ahead of the other sessions waiting for the lock (autosing). */
-    priority?: boolean;
 }
 
+/** Recorded when a dialog is queued: the session claiming it, and whether autosing was active. */
 interface HSDialogOrigin {
-    source: 'mod' | 'player' | 'game';
     session?: HSDialogSession;
     answers?: HSDialogAnswers;
+    autosing: boolean;
 }
 
 /** A session's claim on the dialogs queued while it acts (see HSGameDialogs.#getOrigin). */
@@ -75,9 +74,10 @@ export class HSDialogSession {
  * IsExplicitHSModule: No
  * Description:
  *     Shares the game's dialog queue (Confirm, Alert, InfoAlert, Prompt, PurchasePrompt) between mod features.
- *     With the patcher's dialog hook, each dialog's origin is recorded when it's queued (mod session, player,
- *     mod click, game), and the mod can answer it before it's shown. Without the hook (bookmarklet, older patcher),
- *     sessions answer their dialogs through the DOM.
+ *     With the patcher's dialog hook, each dialog's origin is recorded when it's queued (the mod session claiming
+ *     it, whether autosing was active), and the mod can answer it before it's shown: a session's dialogs get its
+ *     answers, and while autosing is active every other Confirm and Alert is answered.
+ *     Without the hook (bookmarklet, older patcher), sessions answer their dialogs through the DOM.
  *     Features use act() for synchronous actions, and run() for longer ones: run() waits for an idle queue and
  *     holds a lock, so two features never interleave their dialogs.
  *     Design: docs/git-ignore/dialog-queue-design.md
@@ -92,17 +92,14 @@ export class HSGameDialogs {
     static #box: HTMLElement | null = null;
     static #boxOpen = false;
 
+    static #autosingActive = false;
     static #origins = new WeakSet<HSDialogOrigin>();
-    static #gameOrigin: HSDialogOrigin = { source: 'game' };
     static #actWindows: HSActWindow[] = [];
-    // The dialog shown right now (hook mode), and the last one answered or closed in the current task
-    static #shown: HSDialogOrigin | null = null;
-    static #lastClosed: HSDialogOrigin | null = null;
     static #taskEndChannel: MessageChannel | null = null;
     static #taskEndPending = false;
 
     static #lockHolder: HSDialogSession | null = null;
-    static #waiters: { priority: boolean, grant: () => void }[] = [];
+    static #waiters: (() => void)[] = [];
 
     static #domIds: Record<HSDialogKind, { wrapper: string, ok: string, cancel?: string }> = {
         confirm: { wrapper: 'confirmWrapper', ok: 'ok_confirm', cancel: 'cancel_confirm' },
@@ -142,6 +139,15 @@ export class HSGameDialogs {
     }
 
     /**
+     * Set by autosing for its run (Restart included). With the hook, every Confirm and Alert queued meanwhile
+     * is answered (OK, dismissed), unless a session claims it. Without the hook, autosing uses
+     * __HS_AUTO_CONFIRM or the dialog watcher instead.
+     */
+    static setAutosingActive(active: boolean): void {
+        HSGameDialogs.#autosingActive = active;
+    }
+
+    /**
      * No dialog is open. Every queued dialog is shown inside #confirmationBox, so a hidden box means an empty queue.
      * Reads the real inline value: HSUtils.hiddenAction() fakes style.display while it runs.
      */
@@ -168,10 +174,7 @@ export class HSGameDialogs {
     static async run<T>(owner: string, options: HSDialogRunOptions, fn: (s: HSDialogSession) => Promise<T>): Promise<T> {
         const session = new HSDialogSession(owner);
         await new Promise<void>(resolve => {
-            HSGameDialogs.#waiters.push({
-                priority: !!options.priority,
-                grant: () => { HSGameDialogs.#lockHolder = session; resolve(); }
-            });
+            HSGameDialogs.#waiters.push(() => { HSGameDialogs.#lockHolder = session; resolve(); });
             HSGameDialogs.#pump();
         });
 
@@ -206,29 +209,16 @@ export class HSGameDialogs {
     // ── Origins and answers (called by the patched game code) ────────────────────────────────────────
 
     /**
-     * Called when a dialog is queued. In this order:
-     * 1. a session acting right now, or earlier in the same task and event, that claims this kind
-     * 2. a click or key press being handled: the player's (trusted) or a click made by code (mod)
-     * 3. a dialog answered or closed earlier in the same task: the next dialog of its chain, same origin
-     * 4. otherwise the game (timer, network, async chains like a file import)
+     * Called when a dialog is queued: the session acting right now, or earlier in the same task and event,
+     * that claims this kind, and whether autosing is active (so a dialog autosing queued right before a stop
+     * is still answered).
      */
     static #getOrigin(kind: HSDialogKind): HSDialogOrigin | undefined {
         try {
-            const event = window.event;
-            const claim = HSGameDialogs.#findClaim(kind, event);
-            let origin: HSDialogOrigin;
-            if (claim) {
-                origin = { source: 'mod', session: claim.session, answers: claim.answers };
-            } else if (event) {
-                origin = { source: event.isTrusted ? 'player' : 'mod' };
-            } else if (HSGameDialogs.#lastClosed) {
-                const previous = HSGameDialogs.#lastClosed;
-                origin = previous.session && previous.answers?.[kind] !== undefined
-                    ? { source: 'mod', session: previous.session, answers: previous.answers }
-                    : { source: previous.source };
-            } else {
-                origin = { source: 'game' };
-            }
+            const claim = HSGameDialogs.#findClaim(kind, window.event);
+            const origin: HSDialogOrigin = claim
+                ? { session: claim.session, answers: claim.answers, autosing: HSGameDialogs.#autosingActive }
+                : { autosing: HSGameDialogs.#autosingActive };
             HSGameDialogs.#origins.add(origin);
             return origin;
         } catch (error) {
@@ -253,10 +243,11 @@ export class HSGameDialogs {
      */
     static #onDialog(kind: HSDialogKind, rawOrigin: unknown): { value: unknown } | undefined {
         try {
-            // A missing or foreign origin (dialog queued before the mod loaded): the game's
-            const origin = HSGameDialogs.#origins.has(rawOrigin as HSDialogOrigin)
+            // A missing or foreign origin (dialog queued before the mod loaded, origin call failed): no session,
+            // autosing's current state
+            const origin: HSDialogOrigin = HSGameDialogs.#origins.has(rawOrigin as HSDialogOrigin)
                 ? rawOrigin as HSDialogOrigin
-                : HSGameDialogs.#gameOrigin;
+                : { autosing: HSGameDialogs.#autosingActive };
 
             let answer: HSDialogAnswer | undefined;
             if (origin.session) {
@@ -266,16 +257,14 @@ export class HSGameDialogs {
                 } else {
                     answer = origin.answers?.[kind];
                 }
-            } else if ((window as any).__HS_AUTO_CONFIRM === true && (kind === 'confirm' || kind === 'alert')) {
-                // Today's auto-confirm (autosing), whatever the origin. Replaced by an origin-based policy in step 2.
-                answer = kind === 'confirm' ? 'ok' : 'dismiss';
+            } else if (origin.autosing) {
+                // As auto-confirm did. InfoAlerts are shown (the player opened them to read them), and so are
+                // Prompts and PurchasePrompts: the mod can't guess their value
+                if (kind === 'confirm') answer = 'ok';
+                else if (kind === 'alert') answer = 'dismiss';
             }
 
-            if (answer === undefined || answer === 'show') {
-                HSGameDialogs.#shown = origin;
-                return undefined;
-            }
-            HSGameDialogs.#setLastClosed(origin);
+            if (answer === undefined || answer === 'show') return undefined;
             return { value: HSGameDialogs.#toValue(kind, answer) };
         } catch (error) {
             HSLogger.warn(`Dialog hook failed, dialog shown: ${error}`, HSGameDialogs.#context);
@@ -301,14 +290,9 @@ export class HSGameDialogs {
 
     // ── Task scope ───────────────────────────────────────────────────────────────────────────────────
 
-    static #setLastClosed(origin: HSDialogOrigin): void {
-        HSGameDialogs.#lastClosed = origin;
-        HSGameDialogs.#scheduleTaskEnd();
-    }
-
     /**
-     * Clears the act windows and the last closed dialog once the current task has ended. One message for all:
-     * when it's delivered, every task that set them has finished (tasks don't interleave, microtasks run first).
+     * Clears the act windows once the current task has ended. One message for all: when it's delivered,
+     * every task that opened one has finished (tasks don't interleave, microtasks run first).
      */
     static #scheduleTaskEnd(): void {
         if (HSGameDialogs.#taskEndPending) return;
@@ -318,7 +302,6 @@ export class HSGameDialogs {
             HSGameDialogs.#taskEndChannel.port1.onmessage = () => {
                 HSGameDialogs.#taskEndPending = false;
                 HSGameDialogs.#actWindows = HSGameDialogs.#actWindows.filter(actWindow => actWindow.running);
-                HSGameDialogs.#lastClosed = null;
             };
         }
         HSGameDialogs.#taskEndChannel.port2.postMessage(null);
@@ -326,10 +309,7 @@ export class HSGameDialogs {
 
     // ── Queue observer ───────────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Runs when #confirmationBox's style changes, i.e. a dialog is shown or closed. Answered dialogs never
-     * show it. Runs as a microtask queued by the close itself, so before the game's code chained after it.
-     */
+    /** Runs when #confirmationBox's style changes, i.e. a dialog is shown or closed. Answered dialogs never show it. */
     static #onBoxMutation(): void {
         const open = !HSGameDialogs.isQueueIdle();
         if (open === HSGameDialogs.#boxOpen) return;
@@ -338,10 +318,6 @@ export class HSGameDialogs {
         if (open) {
             if (!HSGameDialogs.#hookPatched) HSGameDialogs.#answerShownByDom();
             return;
-        }
-        if (HSGameDialogs.#shown) {
-            HSGameDialogs.#setLastClosed(HSGameDialogs.#shown);
-            HSGameDialogs.#shown = null;
         }
         // One step later: the next queued dialog (or the next one of a chain) may open right after this one closed
         window.setTimeout(() => HSGameDialogs.#pump(), 0);
@@ -368,12 +344,10 @@ export class HSGameDialogs {
 
     // ── Lock ─────────────────────────────────────────────────────────────────────────────────────────
 
-    /** Gives the lock to the next waiter (priority first) when it's free and the queue is idle. */
+    /** Gives the lock to the next waiter (first come, first served) when it's free and the queue is idle. */
     static #pump(): void {
         if (HSGameDialogs.#lockHolder || HSGameDialogs.#waiters.length === 0 || !HSGameDialogs.isQueueIdle()) return;
-        const priorityIndex = HSGameDialogs.#waiters.findIndex(waiter => waiter.priority);
-        const [waiter] = HSGameDialogs.#waiters.splice(priorityIndex >= 0 ? priorityIndex : 0, 1);
-        waiter.grant();
+        HSGameDialogs.#waiters.shift()!();
     }
 
     static #endSession(session: HSDialogSession): void {
