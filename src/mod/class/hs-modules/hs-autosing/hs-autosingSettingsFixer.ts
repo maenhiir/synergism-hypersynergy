@@ -484,9 +484,10 @@ export class HSAutosingSettingsFixer {
                 HSLogger.debug(() => `disableUnwantedSettings: disabled "${settingKey}"`, HSAutosingSettingsFixer.#context);
             }
         }
-        // Without the dialog hook only (older patcher): enable autoConfirmPopups for autosing. With the hook,
-        // HSGameDialogs answers autosing's dialogs. Tracked with '+' prefix so restore knows to disable it.
-        if (!HSGameDialogs.isHookPatched()) {
+        // Older patcher only (auto-confirm without the dialog hook): enable autoConfirmPopups for autosing. With the
+        // hook, or without any patch (bookmarklet), HSGameDialogs answers autosing's dialogs (same test as
+        // setAutosingActive). Tracked with '+' prefix so restore knows to disable it.
+        if (!HSGameDialogs.isHookPatched() && HSUtils.isAutoConfirmPatched()) {
             const autoConfirmSetting = HSSettings.getSetting('autoConfirmPopups');
             if (autoConfirmSetting) {
                 if (!autoConfirmSetting.isEnabled()) {
