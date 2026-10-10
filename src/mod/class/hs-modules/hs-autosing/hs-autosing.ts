@@ -8,6 +8,7 @@ import { HSUI } from "../../hs-core/hs-ui";
 import { HSSettings } from "../../hs-core/settings/hs-settings";
 import { HSNumericSetting } from "../../hs-core/settings/hs-setting";
 import { HSUtils } from "../../hs-utils/hs-utils";
+import { HSNumberParser } from "../../hs-utils/hs-number-parser";
 import { HSAutosingStrategy, PhaseOption, phases, AutosingStrategyPhase, Challenge, SPECIAL_ACTIONS, createDefaultAoagPhase, AOAG_PHASE_ID, AOAG_PHASE_NAME, LOADOUT_ACTION_VALUE, IF_JUMP_VALUE, ALLOWED } from "../../../types/module-types/hs-autosing-types";
 import { HSAutosingModal } from "./hs-autosingModal";
 import { HSGlobal } from "../../hs-core/hs-global";
@@ -21,7 +22,8 @@ import { HSGameDialogs } from "../../hs-core/dialogs/hs-game-dialogs";
 const SPECIAL_ACTION_LABEL_BY_ID = new Map<number, string>(SPECIAL_ACTIONS.map((a) => [a.value, a.label] as const));
 const STAGE_REGEX = /Current Game Section:\s*(.+)/;
 const CHALLENGE_COMPLETIONS_REGEX = /\((\d+)\s*\/\s*(\d+)\):/;
-const CHALLENGE_15_SCORE_REGEX = /:\s*(\S+)/;
+// Everything after the challenge's name: the score is its first number (it can hold no-break spaces, which \S excludes)
+const CHALLENGE_15_SCORE_REGEX = /:\s*(.+)/;
 const ALLOWED_REGEX = new RegExp(ALLOWED.join('|'));
 const EXALT_STATE_ATTRIBUTE = 'data-inside-singularity-challenge';
 
@@ -1881,23 +1883,24 @@ export class HSAutosing extends HSModule {
         const levelElement = this.#challengeProgressElements[Math.floor((challengeIndex - 1) / 5)];
 
         const getLevelText = () => levelElement?.textContent ?? '';
-        const parseValue = (text: string) => new Decimal(this.#parseNumber(text));
+        // Completions are written by the game as plain integers, not formatted for the locale
         const getCompletionMatch = () => getLevelText().match(CHALLENGE_COMPLETIONS_REGEX);
 
         const getCompletions = challengeIndex === 15
             ? () => {
                 const text = getLevelText();
                 if (!CHALLENGE_COMPLETIONS_REGEX.test(text)) {
+                    // The score is formatted for the browser locale ("1,234", "1 234", "1.234")
                     const scoreText = text.match(CHALLENGE_15_SCORE_REGEX)?.[1];
-                    if (scoreText) this.#lastBookmarkC15Score = this.#parseDecimal(scoreText);
+                    if (scoreText) this.#lastBookmarkC15Score = HSNumberParser.parseDecimal(scoreText) ?? HSAutosing.#DECIMAL_0;
                 }
                 return this.#lastBookmarkC15Score;
             }
-            : () => parseValue(getCompletionMatch()?.[1] ?? '0');
+            : () => new Decimal(getCompletionMatch()?.[1] ?? '0');
 
         const getGoal = challengeIndex === 15
             ? () => HSAutosing.#DECIMAL_INFINITY
-            : () => parseValue(getCompletionMatch()?.[2] ?? '9999');
+            : () => new Decimal(getCompletionMatch()?.[2] ?? '9999');
 
         return {
             button: challengeBtn,
@@ -2020,20 +2023,6 @@ export class HSAutosing extends HSModule {
         HSUI.Notify('Autosing paused.');
         while (this.#autosingModal?.getIsPaused() && this.#autosingEnabled) { await HSUtils.sleep(500); }
         this.#autosingEnabled ? HSUI.Notify('Autosing resumed.') : HSUI.Notify('Autosing stopped.');
-    }
-
-    #parseDecimal(text: string): Decimal {
-        const cleanText = text.replace(/,/g, '').trim();
-        try {
-            return new Decimal(cleanText);
-        } catch (e) {
-            return HSAutosing.#DECIMAL_0;
-        }
-    }
-
-    #parseNumber(text: string): number {
-        const parsed = parseFloat(text.replace(/,/g, '').trim());
-        return isNaN(parsed) ? 0 : parsed;
     }
 
     #clickResetButton(element: HTMLElement): void {

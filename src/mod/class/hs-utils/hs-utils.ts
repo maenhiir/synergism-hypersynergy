@@ -233,34 +233,6 @@ export class HSUtils {
         return (typeof n == "boolean");
     }
 
-    // JS native float parsing is fucky and won't work for when the number uses , like "123,456"...
-    static parseFloat2(value: any): number {
-        if (value === null || value === undefined) return NaN;
-
-        let str = String(value).trim();
-        if (!str) return NaN;
-
-        const lastComma = str.lastIndexOf(',');
-        const lastDot = str.lastIndexOf('.');
-
-        if (lastComma !== -1 && lastDot !== -1) {
-            // Both separators exist.
-            // The last one is assumed to be the decimal separator.
-            if (lastComma > lastDot) {
-                // e.g. "1.234,56" -> "1234.56"
-                str = str.replace(/\./g, '').replace(',', '.');
-            } else {
-                // e.g. "1,234.56" -> "1234.56"
-                str = str.replace(/,/g, '');
-            }
-        } else if (lastComma !== -1) {
-            // e.g. "1234,56" -> "1234.56"
-            str = str.replace(',', '.');
-        }
-
-        return parseFloat(str);
-    }
-
     static nullProxy<T>(proxyName: string): T {
         const nullProxy = new Proxy({}, {
             get: () => {
@@ -358,63 +330,6 @@ export class HSUtils {
             console.warn("Error removing color tags from log message", e);
             return `${msg}`;
         }
-    }
-
-    static unfuckNumericString(str: string): string {
-        if (!str) return str;
-
-        // if the number is in e-notation, we can just parse it normally
-        if (str.toLowerCase().includes('e')) {
-            const cleaned = str.replace(/[^0-9eE+.,-]/g, '');
-            const lower = cleaned.toLowerCase();
-            const eIndex = lower.lastIndexOf('e');
-
-            if (eIndex > 0) {
-                let mantissa = cleaned.slice(0, eIndex);
-                const exponent = lower.slice(eIndex);
-
-                const lastComma = mantissa.lastIndexOf(',');
-                const lastDot = mantissa.lastIndexOf('.');
-
-                if (lastComma !== -1 && lastDot !== -1) {
-                    const decimalSeparator = lastComma > lastDot ? ',' : '.';
-                    const thousandsSeparator = decimalSeparator === ',' ? '.' : ',';
-
-                    mantissa = mantissa.replace(new RegExp(`\\${thousandsSeparator}`, 'g'), '');
-                    if (decimalSeparator === ',') {
-                        mantissa = mantissa.replace(',', '.');
-                    }
-                } else if (lastComma !== -1) {
-                    const parts = mantissa.split(',');
-                    if (parts.length === 2 && parts[1].length <= 2) {
-                        mantissa = `${parts[0]}.${parts[1]}`;
-                    } else {
-                        mantissa = mantissa.replace(/,/g, '');
-                    }
-                }
-
-                return `${mantissa}${exponent}`;
-            }
-
-            return cleaned.replace(/,/g, '');
-        }
-
-        // Remove all non-numeric characters except for . and -
-        const cleanedStr = str.replace(/[^0-9.,-]/g, '');
-
-        // Remove , if it is used as thousand separator
-        // and replace . with , if it is used as decimal separator
-        const parts = cleanedStr.split('.');
-
-        let finalStr = '';
-
-        if (parts.length > 1) {
-            finalStr = parts[0].replace(/,/g, '') + '.' + parts[1].replace(/,/g, '');
-        } else {
-            finalStr = cleanedStr.replace(/,/g, '');
-        }
-
-        return finalStr;
     }
 
     static async Noop() {
@@ -605,52 +520,6 @@ export class HSUtils {
                 hyperchallenge: getLevel('corrNexthyperchallenge')
             };
         }
-    }
-
-    static isGreaterThan200(input: any): number {
-        if (input == null) return 0;
-
-        const str = String(input)
-            .trim()
-            .replace(/,/g, ".");
-
-        // If it contains anything other than digits or dot, it's huge
-        if (!/^[0-9.]+$/.test(str)) {
-            return 10000;
-        }
-
-        // Plain number case
-        const num = Number(str);
-        return num;
-    }
-
-    static parseBigNumber(input: any): number {
-        if (input == null) return 0;
-
-        const inputStr = String(input)
-            .replace(/,/g, ".")
-            .trim()
-            .toLowerCase();
-
-        const number = Number(inputStr);
-        return Number.isFinite(number) ? number : 0;
-    }
-
-
-    static currentCoins(input: any): number {
-        if (input == null) return 0;
-
-        const raw = String(input).trim();
-
-        // If the input contains any character other than digits, '.' or ',' => big number
-        if (!/^[0-9.,]+$/.test(raw)) {
-            return 1001;
-        }
-
-        // Replace commas with dots for locales that use comma as decimal separator
-        const normalized = raw.replace(/,/g, '.');
-        const parsed = parseFloat(normalized);
-        return parsed;
     }
 
     static sumContents(arr: (number | null)[]): number {

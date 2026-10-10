@@ -8,6 +8,7 @@ import { HSSetting } from "../hs-core/settings/hs-setting";
 import { HSSettings } from "../hs-core/settings/hs-settings";
 import { HSUI } from "../hs-core/hs-ui";
 import { HSUtils } from "../hs-utils/hs-utils";
+import { HSNumberParser } from "../hs-utils/hs-number-parser";
 import { HSModuleOptions } from "../../types/hs-types";
 import { HSGameDataAPI } from "../hs-core/gds/hs-gamedata-api";
 import type { HSGameData } from "../hs-core/gds/hs-gamedata";
@@ -153,28 +154,15 @@ export class HSHepteracts extends HSModule {
         });
     }
 
-    #parseForgeNumber(text: string): number {
-        const match = text.match(/[-+]?\d[\d.,]*(?:e[-+]?\d+)?/i);
-        if (!match) return NaN;
+    /**
+     * Reads the cost of one hepteract from the forge's description, which the game fills for the hovered hepteract.
+     * The sentence is translated: its first number is the Hepteract cost in every language ({{x}} of "oneCost").
+     */
+    #readHepteractCost(hepteractId: string): void {
+        if (!(hepteractId in this.#hepteractCosts)) return;
 
-        const value = match[0];
-        if (/e/i.test(value)) {
-            return parseFloat(HSUtils.unfuckNumericString(value));
-        }
-
-        if (value.includes(',') && value.includes('.')) {
-            return HSUtils.parseFloat2(value);
-        }
-
-        if (/^[-+]?\d{1,3}(?:,\d{3})+$/.test(value)) {
-            return Number(value.replace(/,/g, ''));
-        }
-
-        if (/^[-+]?\d{1,3}(?:\.\d{3}){2,}$/.test(value)) {
-            return Number(value.replace(/\./g, ''));
-        }
-
-        return Number(value.replace(',', '.'));
+        const cost = HSNumberParser.parse(document.querySelector<HTMLElement>('#hepteractCostText')?.innerText);
+        if (!Number.isNaN(cost)) this.#hepteractCosts[hepteractId] = cost;
     }
 
     #refreshOwnedHepteracts(): void {
@@ -182,7 +170,7 @@ export class HSHepteracts extends HSModule {
         if (!quantity) return;
 
         const text = quantity.querySelector('span')?.textContent ?? quantity.textContent ?? '';
-        const amount = this.#parseForgeNumber(text);
+        const amount = HSNumberParser.parse(text);
         if (!Number.isNaN(amount)) this.#ownedHepteracts = amount;
     }
 
@@ -240,8 +228,8 @@ export class HSHepteracts extends HSModule {
         const [balanceText, capacityText] = meterText.split('/');
         if (balanceText === undefined || capacityText === undefined) return null;
 
-        const currentBalance = this.#parseForgeNumber(balanceText);
-        const currentCapacity = this.#parseForgeNumber(capacityText);
+        const currentBalance = HSNumberParser.parse(balanceText);
+        const currentCapacity = HSNumberParser.parse(capacityText);
         const costPerHepteract = this.#hepteractCosts[hepteractId];
         if (!Number.isFinite(currentBalance) || !Number.isFinite(currentCapacity) || currentCapacity <= 0
             || costPerHepteract === null || costPerHepteract === undefined
@@ -308,14 +296,14 @@ export class HSHepteracts extends HSModule {
                     HSLogger.debug(() => "Hepteract forge view opened, starting watch", this.context);
                     self.#ownedHepteractsElement = await HSElementHooker.HookElement('#hepteractQuantity') as HTMLElement;
 
-                    const initialHepteracts = self.#parseForgeNumber(
+                    const initialHepteracts = HSNumberParser.parse(
                         self.#ownedHepteractsElement.querySelector('span')?.innerText ?? self.#ownedHepteractsElement.innerText
                     );
                     if (!Number.isNaN(initialHepteracts)) self.#ownedHepteracts = initialHepteracts;
 
                     // Sets up a watch to watch for changes in the element which shows owned hepteracts amount
                     self.#ownedHepteractsWatch = HSElementHooker.watchElement(self.#ownedHepteractsElement, (value) => {
-                        const hepts = self.#parseForgeNumber(value ?? '');
+                        const hepts = HSNumberParser.parse(value ?? '');
                         if (Number.isNaN(hepts)) {
                             HSLogger.error(`Failed to parse owned hepteracts`, self.context);
                         } else {
@@ -334,10 +322,10 @@ export class HSHepteracts extends HSModule {
                         });
 
                     self.#ownedQuarkElement = await HSElementHooker.HookElement('#quarkDisplay') as HTMLElement;
-                    const initialQuarks = self.#parseForgeNumber(self.#ownedQuarkElement.innerText);
+                    const initialQuarks = HSNumberParser.parse(self.#ownedQuarkElement.innerText);
                     if (!Number.isNaN(initialQuarks)) self.#ownedQuarks = initialQuarks;
                     self.#ownedQuarksWatch = HSElementHooker.watchElement(self.#ownedQuarkElement, (value) => {
-                        const quarks = self.#parseForgeNumber(value ?? '');
+                        const quarks = HSNumberParser.parse(value ?? '');
                         if (Number.isNaN(quarks)) {
                             HSLogger.error(`Failed to parse quark amount`, self.context);
                         } else {
@@ -393,25 +381,7 @@ export class HSHepteracts extends HSModule {
                             return;
                         }
 
-                        const costElement = document.querySelector('#hepteractCostText') as HTMLDivElement;
-
-                        if (costElement) {
-                            const costString = costElement.innerText;
-                            const costMatch = costString.match(/you\s+(.*?)\s+Hepteracts/i);
-
-                            if (costMatch) {
-                                const cost = costMatch[1];
-
-                                try {
-                                    if (id in self.#hepteractCosts) {
-                                        const floatCost = self.#parseForgeNumber(cost);
-                                        (self.#hepteractCosts as any)[id] = floatCost;
-                                    }
-                                } catch (e) {
-                                    HSLogger.warn(`Error while parsing hepteract cost for ${id}`, self.context);
-                                }
-                            }
-                        }
+                        self.#readHepteractCost(id);
                     });
 
                     if (craftMaxBtn && capBtn && heptImg) {
@@ -525,25 +495,7 @@ export class HSHepteracts extends HSModule {
                             await HSUtils.wait(5);
 
                             if (id !== 'quarkHepteract') {
-                                const costElement = document.querySelector('#hepteractCostText') as HTMLDivElement;
-
-                                if (costElement) {
-                                    const costString = costElement.innerText;
-                                    const costMatch = costString.match(/you\s+(.*?)\s+Hepteracts/i);
-
-                                    if (costMatch) {
-                                        const cost = costMatch[1];
-
-                                        try {
-                                            if (id in self.#hepteractCosts) {
-                                                const floatCost = self.#parseForgeNumber(cost);
-                                                (self.#hepteractCosts as any)[id] = floatCost;
-                                            }
-                                        } catch (e) {
-                                            HSLogger.warn(`Error while parsing NEW hepteract cost for ${id}`, self.context);
-                                        }
-                                    }
-                                }
+                                self.#readHepteractCost(id);
                             }
 
                             const ownedHeptQuantElement = !self.#ownedHepteractsElement ? document.querySelector('#hepteractQuantity') as HTMLElement : self.#ownedHepteractsElement;
@@ -553,7 +505,7 @@ export class HSHepteracts extends HSModule {
 
                                 if (subElement) {
                                     const value = subElement.innerText;
-                                    const hepts = self.#parseForgeNumber(value);
+                                    const hepts = HSNumberParser.parse(value);
                                     if (!Number.isNaN(hepts)) self.#ownedHepteracts = hepts;
                                 }
                             }
@@ -650,7 +602,7 @@ export class HSHepteracts extends HSModule {
 
                                 try {
                                     if (split && split[1]) {
-                                        return parseFloat(HSUtils.unfuckNumericString(split[1]));
+                                        return HSNumberParser.parse(split[1]);
                                     }
                                 } catch (e) {
                                     HSLogger.warn(`Parsing failed for ${split}`, self.context);
@@ -788,7 +740,7 @@ export class HSHepteracts extends HSModule {
         }
 
         const wasPerSecond = unitElement.textContent?.trim() === '/s';
-        const readDisplayedIncome = () => parseFloat(HSUtils.unfuckNumericString(incomeElement.innerText));
+        const readDisplayedIncome = () => HSNumberParser.parse(incomeElement.innerText);
         let rawPerSecond: number;
         let onAscension: number;
 
@@ -828,7 +780,7 @@ export class HSHepteracts extends HSModule {
             const ascensionSpeedText = ascensionSpeedElement.innerText.trim();
             const ascensionSpeed = ascensionSpeedText.endsWith('*')
                 ? 1e6
-                : parseFloat(HSUtils.unfuckNumericString(ascensionSpeedText));
+                : HSNumberParser.parse(ascensionSpeedText);
 
             if (Number.isNaN(rawPerSecond) || Number.isNaN(onAscension) || Number.isNaN(ascensionSpeed)) {
                 return null;
@@ -890,11 +842,7 @@ export class HSHepteracts extends HSModule {
 
     #readPlatonicRequirement(elementId: string): number | null {
         const text = document.querySelector(`#${elementId}`)?.textContent ?? '';
-        const requirementText = text.slice(text.lastIndexOf('/') + 1);
-        const numericMatch = requirementText.match(/[-+]?\d[\d.,]*(?:e[-+]?\d+)?/i);
-        if (!numericMatch) return null;
-
-        const parsed = parseFloat(HSUtils.unfuckNumericString(numericMatch[0]));
+        const parsed = HSNumberParser.parse(text.slice(text.lastIndexOf('/') + 1));
         return Number.isNaN(parsed) ? null : parsed;
     }
 
@@ -960,8 +908,7 @@ export class HSHepteracts extends HSModule {
         }
 
         const levelText = document.querySelector('#platonicUpgradeLevel')?.textContent ?? '';
-        const levelValues = levelText.match(/\d[\d.,]*(?:e[-+]?\d+)?/gi)
-            ?.map(value => parseFloat(HSUtils.unfuckNumericString(value))) ?? [];
+        const levelValues = HSNumberParser.parseAll(levelText);
         if (levelValues.length >= 2 && levelValues[0] >= levelValues[1]) {
             this.#showPlatonicUpgradeEstimate('Time until next level: maxed | Longest requirement: none');
             return;
