@@ -1711,6 +1711,12 @@ class Loadout {
         this.invalidateCaches()
         if (this.cost > stats.amb || stat === "")
             return ["Unaffordable", null, "N / A", "N / A", "N / A", "N / A", false];
+        // Safety net: the game refuses to load a tree that needs more
+        // Blueberries than owned, so never hand one out.
+        if (this.blueberryCost > stats.blueberries) {
+            HSLogger.warn(`[HeaterDiag] ${stat} loadout needs ${this.blueberryCost} Blueberries, ${stats.blueberries} owned: reported Unaffordable`, 'HSHeaterOptimizer');
+            return ["Unaffordable", null, "N / A", "N / A", "N / A", "N / A", false];
+        }
 
         let baseLoadout = new Loadout();
         let effectStr: string;
@@ -4176,6 +4182,8 @@ type CubeLuckFindOptState = {
     upperBounds: Array<{ budget: number; table2Index: number }>;
     upperBoundIndex: number;
     opt: CubeLuckEvaluation;
+    // Blueberries this budget's row still has to pay after the search.
+    reserve: number;
 };
 
 function findCubeLuckOptsForBudgets(
@@ -4184,6 +4192,7 @@ function findCubeLuckOptsForBudgets(
   stat: "cube" | "oct",
   budgets: readonly number[],
   sharedLevelsFixed = false,
+  blueberryReserves?: readonly number[],
 ): Loadout[] {
     if (!sharedLevelsFixed) {
       for (const loadout of table1) {
@@ -4191,16 +4200,27 @@ function findCubeLuckOptsForBudgets(
         loadout.getStat(stat)
       }
     }
+    // With reserves, a budget's row still has to pay that many Blueberries
+    // after the search (Hyperflux itself), so each budget has its own
+    // Blueberry limit. A pair over a limit is then skipped, not repaired:
+    // the repair only knows the global limit, and one repaired union can't
+    // be shared by budgets with different limits.
+    const strict = blueberryReserves !== undefined
+    const fitsBlueberries = (blueberryCost: number, budgetIndex: number): boolean =>
+      blueberryCost + (blueberryReserves?.[budgetIndex] ?? 0) <= stats.blueberries
     if (!sharedLevelsFixed && shouldGroupSharedLevelSearch(table1, table2)) {
       const groups = groupBySharedLevels(table1, table2)
       if (groups !== undefined) {
-        const best = findCubeLuckOptsForBudgets(table1, groups[0], stat, budgets, true)
+        const best = findCubeLuckOptsForBudgets(table1, groups[0], stat, budgets, true, blueberryReserves)
         for (let index = 1; index < groups.length; index++) {
-          const candidates = findCubeLuckOptsForBudgets(table1, groups[index], stat, budgets, true)
+          const candidates = findCubeLuckOptsForBudgets(table1, groups[index], stat, budgets, true, blueberryReserves)
           for (let budgetIndex = 0; budgetIndex < budgets.length; budgetIndex++) {
             const candidate = candidates[budgetIndex]
+            if (!fitsBlueberries(candidate.blueberryCost, budgetIndex))
+              continue
             const statDiff = candidate.getStat(stat) - best[budgetIndex].getStat(stat)
-            if (statDiff > 0 || (statDiff === 0 && candidate.cost < best[budgetIndex].cost))
+            if (!fitsBlueberries(best[budgetIndex].blueberryCost, budgetIndex)
+              || statDiff > 0 || (statDiff === 0 && candidate.cost < best[budgetIndex].cost))
               best[budgetIndex] = candidate
           }
         }
@@ -4209,10 +4229,10 @@ function findCubeLuckOptsForBudgets(
     }
 
     const useOverlapBreak = sharedLevelsFixed || fixedSharedLevels(table1, table2)
-    if (budgets.length === 1)
+    if (budgets.length === 1 && !strict)
       return [findCubeLuckOptSingleFixed(table1, table2, stat, budgets[0], useOverlapBreak)]
     const evaluator = createCubeLuckEvaluator(table2, stat, useOverlapBreak)
-    const states: CubeLuckFindOptState[] = budgets.map(budget => ({
+    const states: CubeLuckFindOptState[] = budgets.map((budget, budgetIndex) => ({
       budget,
       power: 0,
       j: 0,
@@ -4222,8 +4242,10 @@ function findCubeLuckOptsForBudgets(
         left: table1[0],
         cost: table1[0].cost,
         blueberryCost: table1[0].blueberryCost,
-        value: table1[0].getStat(stat),
+        value: fitsBlueberries(table1[0].blueberryCost, budgetIndex)
+          ? table1[0].getStat(stat) : Number.NEGATIVE_INFINITY,
       },
+      reserve: blueberryReserves?.[budgetIndex] ?? 0,
     }))
 
     if (table1.length > 100 && table2.length > 100) {
@@ -4236,12 +4258,12 @@ function findCubeLuckOptsForBudgets(
             const loadout2 = table2[table2Index]
             if (loadout2.cost > state.budget)
               break
-            const union = evaluator.evaluate(loadout1, table2Index, true)
+            const union = evaluator.evaluate(loadout1, table2Index, !strict)
             if (2 * union.cost - loadout1.cost - loadout2.cost > state.budget) {
               state.upperBounds.push({ budget: loadout1.cost, table2Index })
               break
             }
-            if (union.cost > state.budget || union.blueberryCost > stats.blueberries)
+            if (union.cost > state.budget || union.blueberryCost + state.reserve > stats.blueberries)
               continue
             state.power = Math.max(state.power, union.value)
             sampledJ = next
@@ -4280,27 +4302,35 @@ function findCubeLuckOptsForBudgets(
         }
         if (table2[state.j].cost > state.budget)
           continue
-        let union = unionAt(state.j, true)
+        // In strict mode the unions are never repaired, and one over this
+        // budget's Blueberry limit counts as worthless.
+        const blueberryLimit = stats.blueberries - state.reserve
+        let union = unionAt(state.j, !strict)
         if (union.cost > state.budget)
           continue
+        let unionValue = strict && union.blueberryCost > blueberryLimit
+          ? Number.NEGATIVE_INFINITY : union.value
         for (let next = state.j + 1; next < table2.length; next++) {
           if (table2[next].cost > state.budget)
             break
-          const nextUnion = unionAt(next, state.budget < Number.POSITIVE_INFINITY)
+          const nextUnion = unionAt(next, !strict && state.budget < Number.POSITIVE_INFINITY)
           if (useOverlapBreak && 2 * nextUnion.cost - ref.cost - table2[next].cost > state.budget)
             break
           if (nextUnion.cost > state.budget) {
-            if (useOverlapBreak && nextUnion.blueberryCost <= stats.blueberries)
+            if (useOverlapBreak && nextUnion.blueberryCost <= blueberryLimit)
               break
             continue
           }
-          if (nextUnion.value <= union.value)
+          const nextValue = strict && nextUnion.blueberryCost > blueberryLimit
+            ? Number.NEGATIVE_INFINITY : nextUnion.value
+          if (nextValue <= unionValue)
             continue
           union = nextUnion
+          unionValue = nextValue
           state.j = next
         }
-        const statDiff = union.value - state.opt.value
-        if (statDiff > 0 || (statDiff === 0 && union.cost < state.opt.cost))
+        if (unionValue > state.opt.value
+          || (unionValue === state.opt.value && union.cost < state.opt.cost))
           state.opt = union
       }
       for (const index of rawTouched)
@@ -5597,114 +5627,117 @@ export class HSHeaterOptimizer {
                 cubeVoucher: tableCubeV.length,
               })
               hyperfluxSubstageStartedAt = experimentNow()
-              let tableSing = generateTable([stats.exalt > 0 ? "ambrosiaSingReduction2" : "ambrosiaSingReduction1"], "cube")
-              let tableCubeVS = cubeExperimentConfig?.useLegacyHyperfluxMerge
-                ? mergeTables(tableCubeV, tableSing, "cube")
-                : undefined
+              const hyperflux = upgrades.ambrosiaHyperflux
+              // Only the rows that buy Singularity Reduction: builds without
+              // it are searched on their own tables below.
+              const tableSing = generateTable([stats.exalt > 0 ? "ambrosiaSingReduction2" : "ambrosiaSingReduction1"], "cube")
+                .filter(sing => (sing.upgradeLevels.ambrosiaSingReduction1 ?? 0)
+                  + (sing.upgradeLevels.ambrosiaSingReduction2 ?? 0) > 0)
+              const affordable = (loadout: Loadout): boolean =>
+                loadout.cost <= stats.amb && loadout.blueberryCost <= stats.blueberries
+
+              // Hyperflux is added to a row's winner after the search. Only its
+              // Ambrosia used to be taken off the row's budget: its Blueberries
+              // were never counted, so rows H1+ could need more than are owned.
+              // Each request now also reserves them. Singularity Reduction I
+              // already contains its Hyperflux prerequisite: those tables carry
+              // it, reserve nothing, and only pay the Ambrosia above it.
+              const hyperfluxBlueberries = effectiveBlueberryCost("ambrosiaHyperflux")
+              type HyperfluxSource = { table: Loadout[]; carried: number }
+              const plainSource: HyperfluxSource = { table: tableCubeV, carried: 0 }
+              const singSources: HyperfluxSource[] = []
+              if (tableSing.length > 0) {
+                const carried = tableSing[0].upgradeLevels.ambrosiaHyperflux ?? 0
+                if (cubeExperimentConfig?.useLegacyHyperfluxMerge)
+                  singSources.push({ table: mergeTables(tableCubeV, tableSing, "cube"), carried })
+                else
+                  // Each Singularity-reduction level has a fixed cost, berry
+                  // cost and effect. Search its full Cube/Voucher frontier
+                  // separately, then choose the best result per Hyperflux
+                  // row. This retains every candidate from the merged
+                  // frontier without searching one much larger mixed table.
+                  for (const sing of tableSing)
+                    singSources.push({
+                      table: tableCubeV.map(row => Loadout.union(row, sing)).filter(affordable),
+                      carried,
+                    })
+              }
               recordCubeExperimentStage("hyperflux-singularity-table", hyperfluxSubstageStartedAt, {
                 cubeVoucher: tableCubeV.length,
                 singularity: tableSing.length,
-                cubeVoucherSingularity: tableCubeVS?.length ?? 0,
+                cubeVoucherSingularity: singSources.reduce((sum, source) => sum + source.table.length, 0),
               })
               recordCubeExperimentStage("hyperflux-tables", hyperfluxSubstageStartedAt, {
                 cubeVoucher: tableCubeV.length,
-                cubeVoucherSingularity: tableCubeVS?.length ?? 0,
+                cubeVoucherSingularity: singSources.reduce((sum, source) => sum + source.table.length, 0),
               })
 
-              let loadoutsH: (Loadout | undefined)[] = new Array(8).fill(undefined);
-              let thresholds: number[] = new Array(8).fill(0);
-              const directRequests: Array<{ level: number; budget: number }> = []
-              const singRequests: Array<{ level: number; budget: number }> = []
-              for (let h = 0; h <= upgrades.ambrosiaHyperflux.maxLevel; h++) {
-                  let budget = stats.amb - upgrades.ambrosiaHyperflux.cost(h);
-                  if (stats.exalt !== 0 || h >= (upgrades.ambrosiaSingReduction1.prerequisites.ambrosiaHyperflux ?? 0)) {
-                    if (stats.exalt === 0)
-                      budget += upgrades.ambrosiaHyperflux.cost(upgrades.ambrosiaSingReduction1.prerequisites.ambrosiaHyperflux ?? 0)
-                  }
-                  if (budget < 0)
-                      continue;
-                  const request = { level: h, budget }
-                  if (stats.exalt !== 0 || h >= (upgrades.ambrosiaSingReduction1.prerequisites.ambrosiaHyperflux ?? 0))
-                    singRequests.push(request)
-                  else
-                    directRequests.push(request)
-              }
-
-              const resolveRequests = (
-                name: string,
-                requests: Array<{ level: number; budget: number }>,
-                cubeTable: Loadout[],
-              ): void => {
+              const loadoutsH: (Loadout | undefined)[] = new Array(hyperflux.maxLevel + 1).fill(undefined);
+              const thresholds: number[] = new Array(hyperflux.maxLevel + 1).fill(0);
+              // A table serves every row from the Hyperflux level it carries.
+              const searchSource = (source: HyperfluxSource): void => {
+                if (source.table.length === 0)
+                  return
+                const requests: Array<{ level: number; budget: number; reserve: number }> = []
+                for (let h = source.carried; h <= hyperflux.maxLevel; h++) {
+                  const budget = stats.amb - hyperflux.cost(h) + hyperflux.cost(source.carried)
+                  const reserve = h > 0 && source.carried === 0 ? hyperfluxBlueberries : 0
+                  if (budget >= 0 && reserve <= stats.blueberries)
+                    requests.push({ level: h, budget, reserve })
+                }
                 if (requests.length === 0)
                   return
-                hyperfluxSubstageStartedAt = experimentNow()
                 const results = findCubeLuckOptsForBudgets(
-                  cubeTable,
+                  source.table,
                   tableCache.tableLuckCube,
                   "cube",
                   requests.map(request => request.budget),
+                  false,
+                  requests.map(request => request.reserve),
                 )
                 for (let index = 0; index < requests.length; index++) {
-                  const request = requests[index]
-                  loadoutsH[request.level] = results[index]
-                }
-                recordCubeExperimentStage(`hyperflux-${name}-search`, hyperfluxSubstageStartedAt, {
-                  requests: requests.length,
-                  cube: cubeTable.length,
-                  luckCube: tableCache.tableLuckCube.length,
-                })
-              }
-              resolveRequests("direct", directRequests, tableCubeV)
-              if (tableCubeVS !== undefined) {
-                resolveRequests("singularity", singRequests, tableCubeVS)
-              } else if (singRequests.length > 0) {
-                // Each Singularity-reduction level has a fixed cost, berry
-                // cost and effect. Search its full Cube/Voucher frontier
-                // separately, then choose the best result per Hyperflux
-                // budget. This retains every candidate from the merged
-                // frontier without searching one much larger mixed table.
-                hyperfluxSubstageStartedAt = experimentNow()
-                const budgets = singRequests.map(request => request.budget)
-                for (const sing of tableSing) {
-                  const singLevel = sing.upgradeLevels.ambrosiaSingReduction1
-                    ?? sing.upgradeLevels.ambrosiaSingReduction2 ?? 0
-                  if (singLevel === 0)
+                  // The search scores a candidate without the row's Hyperflux
+                  // (its reserved Blueberries still count as unassigned for
+                  // Purple Leo), and tables carry different Hyperflux levels:
+                  // re-score every candidate at the row's level, on full costs.
+                  const level = requests[index].level
+                  const candidate = new Loadout(results[index])
+                  candidate.upgradeLevels.ambrosiaHyperflux = level
+                  if (!affordable(candidate))
                     continue
-                  const tierTable = tableCubeV.map(row => Loadout.union(row, sing))
-                  const candidates = findCubeLuckOptsForBudgets(
-                    tierTable, tableCache.tableLuckCube, "cube", budgets,
-                  )
-                  for (let index = 0; index < singRequests.length; index++) {
-                    const candidate = candidates[index]
-                    const previous = loadoutsH[singRequests[index].level]
-                    if (previous === undefined
-                      || candidate.getStat("cube") > previous.getStat("cube")
-                      || (candidate.getStat("cube") === previous.getStat("cube")
-                        && candidate.cost < previous.cost))
-                      loadoutsH[singRequests[index].level] = candidate
-                  }
-                }
-                const noSingCandidates = findCubeLuckOptsForBudgets(
-                  tableCubeV, tableCache.tableLuckCube, "cube", budgets,
-                )
-                for (let index = 0; index < singRequests.length; index++) {
-                  const candidate = noSingCandidates[index]
-                  const previous = loadoutsH[singRequests[index].level]
+                  const previous = loadoutsH[level]
                   if (previous === undefined
                     || candidate.getStat("cube") > previous.getStat("cube")
                     || (candidate.getStat("cube") === previous.getStat("cube")
                       && candidate.cost < previous.cost))
-                    loadoutsH[singRequests[index].level] = candidate
+                    loadoutsH[level] = candidate
                 }
-                recordCubeExperimentStage("hyperflux-singularity-search", hyperfluxSubstageStartedAt, {
-                  requests: singRequests.length,
-                  tiers: tableSing.length,
-                  cube: tableCubeV.length,
-                  luckCube: tableCache.tableLuckCube.length,
-                })
               }
+              hyperfluxSubstageStartedAt = experimentNow()
+              searchSource(plainSource)
+              recordCubeExperimentStage("hyperflux-direct-search", hyperfluxSubstageStartedAt, {
+                cube: tableCubeV.length,
+                luckCube: tableCache.tableLuckCube.length,
+              })
+              hyperfluxSubstageStartedAt = experimentNow()
+              singSources.forEach(searchSource)
+              recordCubeExperimentStage("hyperflux-singularity-search", hyperfluxSubstageStartedAt, {
+                tiers: singSources.length,
+                cube: tableCubeV.length,
+                luckCube: tableCache.tableLuckCube.length,
+              })
 
-              for (let h = 0; h <= upgrades.ambrosiaHyperflux.maxLevel; h++) {
+              // The P4x4 thresholds compare the rows without Hyperflux's own
+              // Cube effect, at each row's real Blueberry cost.
+              const cubeStatsWithoutHyperflux = loadoutsH.map(loadout => {
+                if (loadout === undefined)
+                  return 0
+                const base = new Loadout(loadout)
+                base.upgradeLevels.ambrosiaHyperflux = 0
+                base.setCachedCosts(loadout.cost, loadout.blueberryCost)
+                return base.getStat("cube")
+              })
+              for (let h = 0; h <= hyperflux.maxLevel; h++) {
                   if (loadoutsH[h] === undefined)
                       continue
                   thresholds[h] = 0;
@@ -5713,17 +5746,14 @@ export class HSHeaterOptimizer {
                           continue
                       if (thresholds[p] > 50)
                           continue;
-                      thresholds[h] = loadoutsH[p]!.getStat("cube") / loadoutsH[h]!.getStat("cube");
+                      thresholds[h] = cubeStatsWithoutHyperflux[p] / cubeStatsWithoutHyperflux[h];
                       thresholds[h] = Math.log2(thresholds[h]) / Math.log2((1 + 0.01 * h) / (1 + 0.01 * p));
                       thresholds[h] = Math.max(0, Math.ceil(thresholds[h]));
                       if (thresholds[h] > Math.min(50, thresholds[p]))
                           break;
                       thresholds[p] = Infinity;
                   }
-                  loadoutsH[h]!.upgradeLevels.ambrosiaHyperflux = h;
               }
-
-              loadoutsH.length = upgrades.ambrosiaHyperflux.maxLevel + 1
 
               let hyperOutput: HeaterResultRowMatrix = [];
               for (let i = 0; i <= upgrades.ambrosiaHyperflux.maxLevel; i++) {
