@@ -103,13 +103,13 @@ export class HSDialogIdentity {
             template.innerHTML = plain;
             plain = template.content.textContent ?? '';
         }
-        if (plain.includes(' ')) plain = plain.replace(HSDialogIdentity.#statSymbol, '');
+        if (plain.includes('\u00A0')) plain = plain.replace(HSDialogIdentity.#statSymbol, '');
         return plain.replace(/\s+/g, ' ').trim();
     }
 
     // A StatSymbols symbol: anything but a letter, digit, space or brace (so numbers and {{placeholders}} stay),
     // plus the letters it uses (Talisman Power, Rune Coefficient, Purple Bar Point)
-    static #statSymbol = /(?:[^\p{L}\p{N}\s{}]|ל|Ɑ|𝚫) (?=\p{Lu})/gu;
+    static #statSymbol = /(?:[^\p{L}\p{N}\s{}]|ל|Ɑ|𝚫)\u00A0(?=\p{Lu})/gu;
 
     static async #build(lang: string): Promise<void> {
         const start = performance.now();
@@ -204,7 +204,7 @@ export class HSDialogIdentity {
     /** Fixed text weight: a Chinese or Japanese character says as much as a few Latin ones. */
     static #weight(chunk: string): number {
         let weight = 0;
-        for (const char of chunk) weight += char >= '⺀' ? 3 : 1;
+        for (const char of chunk) weight += char >= '\u2E80' ? 3 : 1;
         return weight;
     }
 

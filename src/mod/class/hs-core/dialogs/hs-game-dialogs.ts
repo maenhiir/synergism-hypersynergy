@@ -105,6 +105,12 @@ export class HSGameDialogs {
 
     static #autosingActive = false;
     static #watcherInterval: number | null = null;
+    // Autosing without any patch: its Confirms and Alerts are clicked as they open (#checkShownDialog)
+    static #autosingAnswersByDom = false;
+    // Clicks in a row (within one task) by #checkShownDialog for autosing, capped by MAX_ANSWERS_IN_A_ROW
+    static #answersInARow = 0;
+    static readonly MAX_ANSWERS_IN_A_ROW = 20;
+    static readonly SAFETY_NET_POLL_MS = 250;
     // Without the hook: the Confirm or Alert last handled by #checkShownDialog (kind and text)
     static #lastShownDialog: string | null = null;
     static #origins = new WeakSet<HSDialogOrigin>();
@@ -157,13 +163,14 @@ export class HSGameDialogs {
     /**
      * Set by autosing for its run (Restart included). With the hook, every Confirm and Alert queued meanwhile
      * is answered (OK, dismissed), unless a session claims it. With an older patcher, autosing uses
-     * __HS_AUTO_CONFIRM instead (HSAutosingSettingsFixer). Without any patch (bookmarklet), the dialog watcher
-     * clicks them for as long as autosing is active.
+     * __HS_AUTO_CONFIRM instead (HSAutosingSettingsFixer). Without any patch (bookmarklet), they're clicked as
+     * soon as they open (#checkShownDialog), with a slow poll as a safety net, for as long as autosing is active.
      */
     static setAutosingActive(active: boolean): void {
         HSGameDialogs.#autosingActive = active;
-        const needsWatcher = active && !HSGameDialogs.#hookPatched && !(window as any).__HS_AUTO_CONFIRM_PATCHED;
-        if (needsWatcher) HSGameDialogs.#startWatcher();
+        const answersByDom = active && !HSGameDialogs.#hookPatched && !(window as any).__HS_AUTO_CONFIRM_PATCHED;
+        HSGameDialogs.#autosingAnswersByDom = answersByDom;
+        if (answersByDom) HSGameDialogs.#startWatcher();
         else HSGameDialogs.#stopWatcher();
     }
 
@@ -424,12 +431,13 @@ export class HSGameDialogs {
         if (buttonId) (document.getElementById(buttonId) as HTMLButtonElement | null)?.click();
     }
 
-    // ── Hidden dialogs without the hook ──────────────────────────────────────────────────────────────
+    // ── Shown Confirms and Alerts without the hook (hidden dialogs, autosing) ────────────────────────
 
     /**
-     * Without the hook, a hidden dialog can only be answered once shown. The box observer misses a dialog that
-     * opens as the previous one closes (the box looks open all along), so the Confirm and Alert wrappers and
-     * texts are watched too, and each opening is handled once.
+     * Without the hook, a dialog can only be answered once shown. The box observer misses a dialog that opens as
+     * the previous one closes (the box looks open all along), so the Confirm and Alert wrappers and texts are
+     * watched too, and each opening is handled once. The game rewrites the text at every opening, so even a
+     * dialog with the same text as the previous one is seen. The callback runs before the browser paints.
      */
     static #observeShownDialogs(): void {
         const observer = new MutationObserver(() => HSGameDialogs.#checkShownDialog());
@@ -453,7 +461,11 @@ export class HSGameDialogs {
         if (signature === HSGameDialogs.#lastShownDialog) return;
         HSGameDialogs.#lastShownDialog = signature;
 
-        // A session's dialog is answered by #answerShownByDom, autosing's by the watcher
+        if (HSGameDialogs.#autosingAnswersByDom) {
+            HSGameDialogs.#answerForAutosing(kind);
+            return;
+        }
+        // A session's dialog is answered by #answerShownByDom. Autosing with an older patcher: by auto-confirm
         if (HSGameDialogs.#autosingActive || HSGameDialogs.#claimsShown(kind)) return;
         const keys = HSHiddenDialogs.identify(kind, text);
         // Not while a run() holds the lock: that feature may read the dialog
@@ -472,23 +484,42 @@ export class HSGameDialogs {
             && (actWindow.running || actWindow.event === window.event));
     }
 
-    // ── Dialog watcher (no patch at all) ─────────────────────────────────────────────────────────────
+    /**
+     * Autosing without any patch: OK on the Confirm or Alert that just opened, as the hook's autosing policy
+     * answers them (no session answers a Confirm or Alert otherwise). At most MAX_ANSWERS_IN_A_ROW within one
+     * task: a dialog reopening itself at every OK would otherwise freeze the page. Past it, the safety net poll
+     * answers, one dialog per poll.
+     */
+    static #answerForAutosing(kind: HSHideableDialogKind): void {
+        if (HSGameDialogs.#answersInARow >= HSGameDialogs.MAX_ANSWERS_IN_A_ROW) {
+            HSLogger.debug(() => `${HSGameDialogs.MAX_ANSWERS_IN_A_ROW} dialogs answered in a row: left to the safety net`, HSGameDialogs.#context);
+            return;
+        }
+        // A new task resets the count
+        if (HSGameDialogs.#answersInARow++ === 0) window.setTimeout(() => { HSGameDialogs.#answersInARow = 0; }, 0);
+        HSGameDialogs.#lastShownDialog = null;
+        (document.getElementById(HSGameDialogs.#domIds[kind].ok) as HTMLButtonElement | null)?.click();
+    }
+
+    // ── Dialog watcher, safety net (no patch at all) ─────────────────────────────────────────────────
 
     /**
-     * Clicks OK on every visible Confirm and Alert, as the hook's autosing policy answers them.
-     * Polls: without the hook, dialogs chained after an answer may open without the box ever closing.
+     * Clicks OK on a visible Confirm or Alert every SAFETY_NET_POLL_MS while autosing is active. #checkShownDialog
+     * answers them as they open; this only catches what it couldn't (elements missing at load, a chain past
+     * MAX_ANSWERS_IN_A_ROW): autosing's wait at Exalt has no time limit.
      */
     static #startWatcher(): void {
         if (HSGameDialogs.#watcherInterval !== null) return;
-        HSLogger.debug(() => 'Dialog watcher started', HSGameDialogs.#context);
+        HSLogger.debug(() => 'Dialog watcher (safety net) started', HSGameDialogs.#context);
         const kinds: HSDialogKind[] = ['confirm', 'alert'];
         HSGameDialogs.#watcherInterval = window.setInterval(() => {
             for (const kind of kinds) {
                 const ids = HSGameDialogs.#domIds[kind];
                 if (document.getElementById(ids.wrapper)?.style.display !== 'block') continue;
+                HSLogger.debug(() => `Dialog watcher (safety net) answered a ${kind}`, HSGameDialogs.#context);
                 (document.getElementById(ids.ok) as HTMLButtonElement | null)?.click();
             }
-        }, 5);
+        }, HSGameDialogs.SAFETY_NET_POLL_MS);
     }
 
     static #stopWatcher(): void {
