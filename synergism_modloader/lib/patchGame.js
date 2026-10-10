@@ -197,14 +197,17 @@ async function patchGame(opts) {
     }
 }
 
-// The local dev server (http-server) sends a one-hour cache header, so each URL is made unique.
+// Each mod URL is made unique: the game keeps the downloaded mod in its browser cache, for one hour
+// from the local dev server (http-server) and up to 7 days from a jsDelivr branch (@master), and a
+// jsDelivr purge doesn't reach that cache.
 function buildModUrl(channelId, ref) {
     const ch = resolveChannel(channelId)
     if (ch.local) return `${ch.modUrl}?t=${Date.now()}`
     const r = ref || ch.defaultRef
-    return `https://cdn.jsdelivr.net/gh/${ch.repo}@${r}/${DEFAULTS.modReleasePath}`
+    return `https://cdn.jsdelivr.net/gh/${ch.repo}@${r}/${DEFAULTS.modReleasePath}?t=${Date.now()}`
 }
 
+// The loader downloads the patcher itself, outside any browser cache: only the local URL is made unique.
 function buildPatcherUrl(channelId, ref) {
     const ch = resolveChannel(channelId)
     if (ch.local) return `${ch.patcherUrl}?t=${Date.now()}`
