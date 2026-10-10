@@ -3,7 +3,7 @@ const path = require('path')
 const fs = require('fs')
 const { autoUpdater } = require('electron-updater')
 
-const { loadConfig, saveConfig, DEFAULTS, resolveChannel, listChannels } = require('./lib/config')
+const { loadConfig, saveConfig, DEFAULTS, resolveChannel, listChannels, setLocalChannelEnabled } = require('./lib/config')
 const { detectSteamPathWindows, findGameDir, detectSevenZip, getBundledSevenZipPath } = require('./lib/steamLocator')
 const { patchGame, buildModUrl, buildPatcherUrl } = require('./lib/patchGame')
 const { createLauncherUpdater } = require('./lib/launcherUpdater')
@@ -11,6 +11,9 @@ const { listModRefs } = require('./lib/modRefs')
 const { rememberedRefs } = require('./lib/modRefCache')
 const { launchGame } = require('./lib/gameLauncher')
 const { cleanupOldWorkspaces, ensureNoRunningWorkGames } = require('./lib/workspaceManager')
+
+// The hidden "local" channel: only when running from source (npm start) or started with HS_LOADER_DEV=1.
+setLocalChannelEnabled(!app.isPackaged || process.env.HS_LOADER_DEV === '1')
 
 let mainWindow
 let patchInProgress = false
@@ -143,6 +146,17 @@ ipcMain.handle('channels:list', () => listChannels())
 
 ipcMain.handle('mod:get-refs', async (_e, channelId) => {
     const ch = resolveChannel(channelId)
+    if (ch.local) {
+        return {
+            refs: [{ name: ch.defaultRef, type: 'dev server', date: null }],
+            branchCount: 0,
+            tagCount: 0,
+            defaultRef: ch.defaultRef,
+            datesIncomplete: false,
+            message: `Local build from http://${ch.repo} — keep start-dev-server.bat running while patching and playing.`,
+            error: null
+        }
+    }
     try {
         const cfg = loadConfig(app)
         const signal = AbortSignal.timeout(8000)

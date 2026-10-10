@@ -392,13 +392,16 @@ async function loadModRefs() {
   els.refsStatus.className = 'status-line'
   const requestedChannel = state.channel
   const requestId = ++refsRequestId
-  const { refs, branchCount, tagCount, defaultRef, datesIncomplete, error } = await window.loader.getModRefs(requestedChannel)
+  const { refs, branchCount, tagCount, defaultRef, datesIncomplete, message, error } = await window.loader.getModRefs(requestedChannel)
   if (requestedChannel !== state.channel || requestId !== refsRequestId) return
 
   renderRefOptions(refs, defaultRef)
   if (!error) state.refListCache[requestedChannel] = refs
 
-  if (error) {
+  if (message) {
+    els.refsStatus.textContent = message
+    els.refsStatus.className = 'status-line ok'
+  } else if (error) {
     const saved = refs.length > 1 || state.lastPlayedChannel === state.channel
     els.refsStatus.textContent = `Couldn't reach GitHub (${error}) — showing ${saved ? 'saved builds' : 'the default branch'}.`
     els.refsStatus.className = 'status-line error'
@@ -559,10 +562,10 @@ els.quickSwitchBtn.addEventListener('click', async () => {
 
     state.channels = await window.loader.getChannels()
     const preferredChannel = cfg.lastPlayedChannel || cfg.lastPatchedChannel || cfg.channel
-    state.channel = (preferredChannel && state.channels.some(c => c.id === preferredChannel))
-      ? preferredChannel
-      : (state.channels[0]?.id || 'live')
-    state.modRef = cfg.lastPlayedModRef || cfg.lastPatchedModRef || cfg.modRef || ''
+    const preferredAvailable = Boolean(preferredChannel && state.channels.some(c => c.id === preferredChannel))
+    state.channel = preferredAvailable ? preferredChannel : (state.channels[0]?.id || 'live')
+    // A ref saved for a channel that isn't offered (e.g. the hidden local one) means nothing here.
+    state.modRef = preferredAvailable ? (cfg.lastPlayedModRef || cfg.lastPatchedModRef || cfg.modRef || '') : ''
 
     els.steamPathInput.value = state.steamPath
     els.gameDirOutput.value = state.gameDir

@@ -197,14 +197,17 @@ async function patchGame(opts) {
     }
 }
 
+// The local dev server (http-server) sends a one-hour cache header, so each URL is made unique.
 function buildModUrl(channelId, ref) {
     const ch = resolveChannel(channelId)
+    if (ch.local) return `${ch.modUrl}?t=${Date.now()}`
     const r = ref || ch.defaultRef
     return `https://cdn.jsdelivr.net/gh/${ch.repo}@${r}/${DEFAULTS.modReleasePath}`
 }
 
 function buildPatcherUrl(channelId, ref) {
     const ch = resolveChannel(channelId)
+    if (ch.local) return `${ch.patcherUrl}?t=${Date.now()}`
     const r = ref || ch.defaultRef
     return `https://cdn.jsdelivr.net/gh/${ch.repo}@${r}/${DEFAULTS.patcherPath}`
 }
