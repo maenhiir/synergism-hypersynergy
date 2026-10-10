@@ -81,7 +81,7 @@ function buildHeaderTooltipLabel(label: string, tooltip: string): string {
 function buildArraySectionHeaderRow(showP4x4: boolean, effectHeader: string): string {
     const blueberryHeader = `<img src="Pictures/Default/Blueberries.png" class="hs-heater-header-icon" />`;
     const effectLabel = showP4x4
-        ? buildHeaderTooltipLabel(effectHeader, "Effect do not consider hyperflux.")
+        ? buildHeaderTooltipLabel(effectHeader, "Effect counts Hyperflux as if you have P4x4x50")
         : `<th>${escapeHtml(effectHeader)}</th>`;
     const p4x4Label = showP4x4
         ? buildHeaderTooltipLabel("p4x4 eq", `"p4x4 eq" indicates the amount\n`
