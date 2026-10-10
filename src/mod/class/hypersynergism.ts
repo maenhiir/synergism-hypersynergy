@@ -17,6 +17,10 @@ import { HSHeaterInputModalController } from "./hs-modules/hs-heater/hs-heater-i
 import { HSUtils } from "./hs-utils/hs-utils";
 import { HSGithub } from "./hs-core/github/hs-github";
 import { HSGameDialogs } from "./hs-core/dialogs/hs-game-dialogs";
+import { HSDevTools } from "./hs-core/dev/hs-dev-tools";
+
+// Build-time injected by esbuild via `define`: false in the release build only.
+declare const HS_DEV_BUILD: boolean;
 
 /**
  * Class: Hypersynergism
@@ -640,6 +644,7 @@ export class Hypersynergism {
     #buildDebugTab(hsui: HSUI) {
         hsui.replaceTabContents(4,
             HSUIC.Grid({
+                id: 'hs-panel-debug-grid',
                 class: 'hs-panel-grid-2col',
                 html: [
                     this.#buildGridSectionHeader('Mouse'),
@@ -649,6 +654,12 @@ export class Hypersynergism {
                 ]
             })
         );
+
+        // Dev builds only: the release build drops this block, and HSDevTools with it
+        if (HS_DEV_BUILD) {
+            const debugGrid = document.getElementById('hs-panel-debug-grid');
+            if (debugGrid) new HSDevTools().build(debugGrid);
+        }
     }
 
 }
