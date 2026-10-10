@@ -443,6 +443,8 @@ export class HSQOLButtons extends HSModule {
         const savedRatios = this.#getGQDistributorRatios();
 
         const inputs: { [key: string]: HTMLInputElement } = {};
+        // The game's name of each upgrade, for the skip summary (the id until resolved)
+        const upgradeNames = new Map<string, string>();
 
         unmaxedUpgrades.forEach((upgrade) => {
             const wrapper = document.createElement('div');
@@ -457,6 +459,11 @@ export class HSQOLButtons extends HSModule {
             img.style.height = '32px';
             img.style.marginBottom = '5px';
             wrapper.appendChild(img);
+            void HSUtils.getGameTranslation(`singularity.data.${upgrade.id}.name`).then((name) => {
+                if (!name) return;
+                upgradeNames.set(upgrade.id, name);
+                img.title = name;
+            });
 
             const input = document.createElement('input');
             input.type = 'number';
@@ -488,6 +495,9 @@ export class HSQOLButtons extends HSModule {
         statusLabel.style.color = '#aaa';
         statusLabel.style.minHeight = '16px';
         statusLabel.style.textAlign = 'center';
+        // The skip summary takes one line per reason, and can be selected and copied (the game blocks it on mobile)
+        statusLabel.style.whiteSpace = 'pre-line';
+        statusLabel.style.userSelect = 'text';
 
         // Any new status cancels a pending auto-clear, so an older timer can't wipe a newer message
         let statusClearTimer: ReturnType<typeof setTimeout> | undefined;
@@ -642,33 +652,54 @@ export class HSQOLButtons extends HSModule {
                         const val = parseFloat(inputs[id].value) || 0;
                         if (Number.isFinite(val) && val > 0) ratios[id] = val;
                     }
+                    if (Object.keys(ratios).length === 0) {
+                        setStatus('No ratio set.');
+                        return;
+                    }
 
                     // Skip the upgrades the game would refuse with an alert instead of the purchase dialog:
                     // maxed since the list was built (e.g. a previous distribution), or next level costing
                     // more than the whole balance.
                     // Their share goes to the other upgrades, or stays unspent with "Keep the share of skipped upgrades".
                     const gqHelper = HSModuleManager.getModule<HSGameDataAPI>('HSGameDataAPI')?.goldenQuark;
-                    const skipped: string[] = [];
+                    type SkipReason = 'maxed' | 'tooExpensive' | 'shareTooSmall' | 'aboveRatio';
+                    const skipped: Record<SkipReason, string[]> = { maxed: [], tooExpensive: [], shareTooSmall: [], aboveRatio: [] };
+                    // One line per skip reason. `share` says what became of the share of the upgrades skipped
+                    // before the allocation; a share too small for a level is never spent, whatever the checkbox.
+                    const skipSummary = (header: string, share?: string): string => {
+                        const shareNote = share ? ` (${share})` : '';
+                        const labels: Record<SkipReason, string> = {
+                            maxed: `Maxed${shareNote}`,
+                            tooExpensive: `Next level costs more than all your GQ${shareNote}`,
+                            shareTooSmall: 'Share too small for one level (left unspent)',
+                            aboveRatio: 'Already at or above its ratio'
+                        };
+                        const lines = (Object.keys(labels) as SkipReason[])
+                            .filter(reason => skipped[reason].length > 0)
+                            .map(reason => `${labels[reason]}: ${skipped[reason].map(id => upgradeNames.get(id) ?? id).join(' · ')}`);
+                        const count = Object.values(skipped).reduce((sum, ids) => sum + ids.length, 0);
+                        return [`${header} ${count} skipped:`, ...lines].join('\n');
+                    };
                     const nextLevelCostById = new Map<string, number>();
                     const buyableIds = Object.keys(ratios).filter((id) => {
                         if (!gqHelper) return true;
                         const key = id as GoldenQuarkUpgradeKey;
                         const level = gqHelper.getGQUpgradeLevel(key);
                         if (level >= gqHelper.computeGQUpgradeMaxLevel(key)) {
-                            skipped.push(`${id} (maxed)`);
+                            skipped.maxed.push(id);
                             return false;
                         }
                         const nextLevelCost = gqHelper.getGQUpgradeCumulativeCost(key, level + 1)
                             - gqHelper.getGQUpgradeCumulativeCost(key, level);
                         if (nextLevelCost > totalGQ) {
-                            skipped.push(`${id} (not enough GQ)`);
+                            skipped.tooExpensive.push(id);
                             return false;
                         }
                         nextLevelCostById.set(id, nextLevelCost);
                         return true;
                     });
                     if (buyableIds.length === 0) {
-                        if (skipped.length > 0) setStatus(`Nothing to buy. Skipped: ${skipped.join(', ')}`);
+                        setStatus(skipSummary('Nothing to buy.'));
                         return;
                     }
                     // Keeping their share: skipped upgrades still take part in the allocation (so the others
@@ -684,7 +715,10 @@ export class HSQOLButtons extends HSModule {
                         return { id, weight, invested };
                     }).filter(entry => entry.weight > 0);
 
-                    if (weightEntries.length === 0 || gqBudget <= 0) return;
+                    if (weightEntries.length === 0 || gqBudget <= 0) {
+                        setStatus('No Golden Quarks to spend.');
+                        return;
+                    }
 
                     let additionalAmounts: number[];
                     if (!balanceInvestments.checked) {
@@ -768,13 +802,18 @@ export class HSQOLButtons extends HSModule {
                         const amountToSpend = plannedSpendById.get(id) ?? 0;
                         setStatus(`Buying ${current}/${buyableIds.length} — spending ${amountToSpend.toLocaleString()} GQ…`);
 
-                        if (amountToSpend <= 0) { setStatus(`Skipped ${current}/${buyableIds.length} (0 GQ)`); continue; }
+                        if (amountToSpend <= 0) {
+                            // Balancing gives nothing to an upgrade already at its target; otherwise the share rounds to 0
+                            skipped[balanceInvestments.checked ? 'aboveRatio' : 'shareTooSmall'].push(id);
+                            setStatus(`Skipped ${current}/${buyableIds.length} (0 GQ)`);
+                            continue;
+                        }
                         // Checked here, not left to the purchase dialog: the game refuses with an alert instead of
                         // opening it when the balance left after the previous purchases can't buy a level.
                         // The balance always covers what's left to spend, so an allocation that buys a level can't be refused.
                         if (amountToSpend < (nextLevelCostById.get(id) ?? 0)) {
-                            skipped.push(`${id} (allocation cannot buy a level)`);
-                            setStatus(`Skipped ${current}/${buyableIds.length} (allocation cannot buy a level)`);
+                            skipped.shareTooSmall.push(id);
+                            setStatus(`Skipped ${current}/${buyableIds.length} (share too small for one level)`);
                             continue;
                         }
 
@@ -801,8 +840,8 @@ export class HSQOLButtons extends HSModule {
                         costInput.dispatchEvent(new Event('input', { bubbles: true }));
                         if (okPurchase.disabled) {
                             cancelPurchase.click();
-                            skipped.push(`${id} (allocation cannot buy a level)`);
-                            setStatus(`Skipped ${current}/${buyableIds.length} (allocation cannot buy a level)`);
+                            skipped.shareTooSmall.push(id);
+                            setStatus(`Skipped ${current}/${buyableIds.length} (share too small for one level)`);
                         } else {
                             // The game confirms multi-level and One Mind purchases with an Alert, chained after this click
                             if (!s.act({ alert: 'dismiss' }, () => okPurchase.click())) {
@@ -819,8 +858,9 @@ export class HSQOLButtons extends HSModule {
                         btn.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
                         btn.blur();
                     }
-                    if (skipped.length > 0) {
-                        setStatus(`Done. Skipped${keepSkipped ? ' (their share was kept)' : ''}: ${skipped.join(', ')}`, 60000);
+                    if (Object.values(skipped).some(ids => ids.length > 0)) {
+                        // Stays until the next status, so it can be read and copied
+                        setStatus(skipSummary('Done.', keepSkipped ? 'share kept' : 'share given to the others'));
                     } else {
                         setStatus('Done!', 3000);
                     }
