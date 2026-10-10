@@ -29,6 +29,19 @@
     cursor: pointer;
 }
 
+/* "Show hidden dialogs as notifications" and the "Hidden dialogs" list belong to "Hide game dialogs":
+   indented under its label (block padding + switch width + gap) */
+#hs-setting-block-hide-game-dialogs-notify,
+#hs-hidden-dialogs-block {
+    padding-left: calc(40px + 0.5em);
+}
+
+/* ...and hidden while it's off: its switch has .hs-disabled then, kept up to date by the settings UI */
+.hs-panel-setting-block:has(#hs-setting-hide-game-dialogs-btn.hs-disabled) ~ #hs-setting-block-hide-game-dialogs-notify,
+.hs-panel-setting-block:has(#hs-setting-hide-game-dialogs-btn.hs-disabled) ~ #hs-hidden-dialogs-block {
+    display: none;
+}
+
 /* "Hidden dialogs" list in the panel: full width, "Restore default" below it */
 #hs-hidden-dialogs-list {
     grid-column: 1 / span 2;

@@ -49,7 +49,7 @@
   "hideGameDialogs": {
     "settingName": "hideGameDialogs",
     "settingDescription": "Hide game dialogs",
-    "settingHelpText": "Adds a 'Don't show again' / 'Always confirm' checkbox to the game's Confirm and Alert dialogs. Hidden dialogs are answered OK without being shown. Turning this on also hides a ready-made list of useless dialogs. The list of hidden dialogs is below.",
+    "settingHelpText": "Adds a 'Don't show again' / 'Always confirm' checkbox to the game's Confirm and Alert dialogs. Hidden dialogs are answered OK without being shown. Turning this on also hides a ready-made list of useless dialogs. The list of hidden dialogs is shown below while this is on.",
     "settingType": "boolean",
     "enabled": false,
     "settingAction": "hideGameDialogs",
