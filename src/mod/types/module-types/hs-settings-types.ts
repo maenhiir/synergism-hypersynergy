@@ -52,7 +52,6 @@ export interface HSSettingsDefinition {
 
     // Game Data Settings
     useGameData: UseGameDataSetting;
-    stopSniffOnError: StopSniffOnErrorSetting;
 
     // Auto Sing Settings
     startAutosing: StartAutosing;
@@ -207,7 +206,6 @@ export interface PATCH_shopItemNameMapping extends HSSettingBase<boolean> { }
 
 // Game Data Settings
 export interface UseGameDataSetting extends HSSettingBase<boolean> { }
-export interface StopSniffOnErrorSetting extends HSSettingBase<boolean> { }
 
 // Auto Sing Settings
 export interface StartAutosing extends HSSettingBase<boolean> { }

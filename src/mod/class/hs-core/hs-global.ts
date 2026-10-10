@@ -135,7 +135,6 @@ export const HSGlobal: IHSGlobal = class {
         // this list may enable GDS themselves when switched on.
         gameDataCheckBlacklist: [
             'useGameData',
-            'stopSniffOnError',
             // These settings below auto-enable GDS when toggled on,
             // so they should be allowed to toggle even when GDS is off
             // RETIRED: 'ambrosiaIdleSwap',

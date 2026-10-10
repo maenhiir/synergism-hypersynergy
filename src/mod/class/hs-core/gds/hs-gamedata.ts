@@ -8,7 +8,7 @@ import { HSGlobal } from "../hs-global";
 import { HSLogger } from "../hs-logger";
 import { HSModule } from "../module/hs-module";
 import { HSModuleManager } from "../module/hs-module-manager";
-import { HSBooleanSetting, HSSetting } from "../settings/hs-setting";
+import { HSSetting } from "../settings/hs-setting";
 import { HSSettings } from "../settings/hs-settings";
 import { HSUI } from "../hs-ui";
 import { HSAutosing } from "../../hs-modules/hs-autosing/hs-autosing";
@@ -29,10 +29,8 @@ import { CampaignData } from "../../../types/data-types/hs-campaign-data";
 export class HSGameData extends HSModule {
     // --- Save Data & State ---
     #saveDataLocalStorageKey = 'Synergysave2';
-    #saveDataCheckInterval?: number;
     #saveData?: GameData;
     #lastB64Save?: string;
-    #wasUsingGDS = false;
     
     isSteam = false;
 
@@ -79,12 +77,9 @@ export class HSGameData extends HSModule {
     #saveinfoElement?: HTMLParagraphElement;
     #gameDataDebugElement?: HTMLDivElement;
     #campaignTokenElement?: HTMLHeadingElement;
-    #singularityButton?: HTMLImageElement;
     #importSaveButton?: HTMLLabelElement;
-    #singularityChallengeButtons?: HTMLDivElement[];
 
     // --- Event Handlers ---
-    #singularityEventHandler?: (e: MouseEvent) => Promise<void>;
     #loadFromFileEventHandler?: (e: MouseEvent) => Promise<void>;
 
     // --- Data APIs & Subscribers ---
@@ -147,8 +142,6 @@ export class HSGameData extends HSModule {
         this.#manualSaveButton = document.querySelector('#savegame') as HTMLButtonElement;
         this.#saveinfoElement = document.querySelector('#saveinfo') as HTMLParagraphElement;
         this.#campaignTokenElement = document.querySelector('#campaignTokenCount') as HTMLHeadingElement;
-        this.#singularityButton = document.querySelector('#singularitybtn') as HTMLImageElement;
-        this.#singularityChallengeButtons = Array.from(document.querySelectorAll('#singularityChallenges > div.singularityChallenges > div'));
     }
 
     /**
@@ -583,31 +576,10 @@ export class HSGameData extends HSModule {
                 this.#saveDataUpdated();
             } catch (error) {
                 HSLogger.debug(() => `<red>Error processing save data:</red> ${error}`, this.context);
-                this.#maybeStopSniffOnError();
             }
         }
 
         requestAnimationFrame(this.#processSaveDataWithRAF);
-    }
-
-    /**
-     * Stops game data sniffing if error is detected and settings allow it.
-     * @returns void
-     */
-    #maybeStopSniffOnError() {
-        if (!this.#saveDataCheckInterval) return;
-
-        const useGameDataSetting = HSSettings.getSetting('useGameData') as HSBooleanSetting;
-        const stopSniffOnErrorSetting = HSSettings.getSetting('stopSniffOnError') as HSBooleanSetting;
-
-        if (useGameDataSetting && stopSniffOnErrorSetting) {
-            if (stopSniffOnErrorSetting.isEnabled()) {
-                HSLogger.debug(() => `Stopped game data sniffing on error`, this.context);
-                useGameDataSetting.disable();
-            }
-        } else {
-            HSLogger.debug(() => `maybeStopSniffOnError() - Issue with fetching settings: ${useGameDataSetting}, ${stopSniffOnErrorSetting}`, this.context);
-        }
     }
 
 
@@ -691,9 +663,6 @@ export class HSGameData extends HSModule {
             this.#saveinfoElement = await HSElementHooker.HookElement('#saveinfo') as HTMLParagraphElement;
         }
 
-        if (!this.#singularityButton)
-            this.#singularityButton = await HSElementHooker.HookElement('#singularitybtn') as HTMLImageElement;
-
         // Cancelled while waiting by disableGDS() or pauseGDS() (e.g. GDS turned off, autosing started)
         if (generation !== this.#engineGeneration || this.#enginePauses.size > 0 || this.#gdsEnabled) {
             HSLogger.debug(() => `GDS start cancelled`, this.context);
@@ -711,8 +680,6 @@ export class HSGameData extends HSModule {
                 this.#manualSaveButton.dispatchEvent(this.#saveTriggerEvent);
             }
         }, HSGlobal.HSGameData.gdsSpeedMs)
-
-        this.#singularityChallengeButtons ||= Array.from(document.querySelectorAll('#singularityChallenges > div.singularityChallenges > div'));
 
         HSLogger.info(`GDS = ON`, this.context);
         this.#gdsEnabled = true;
@@ -740,19 +707,16 @@ export class HSGameData extends HSModule {
                 this.#saveDataUpdated();
             } catch (error) {
                 HSLogger.debug(() => `<red>Error processing save data:</red> ${error}`, this.context);
-                this.#maybeStopSniffOnError();
             }
         }
     }
 
     /**
-     * Disables Game Data Sniffing (GDS) mode, clears intervals,
-     * removes injected styles, and detaches event handlers.
+     * Disables Game Data Sniffing (GDS) mode, clears intervals
+     * and removes injected styles.
      * @returns Promise<void>
      */
     async disableGDS() {
-        const self = this;
-
         // Cancels a start still waiting in #startEngine()
         this.#engineGeneration++;
 
@@ -766,31 +730,8 @@ export class HSGameData extends HSModule {
 
         HSUI.removeInjectedStyle(HSGlobal.HSGameData.gdsCSSId);
 
-        if (!this.#singularityButton)
-            this.#singularityButton = await HSElementHooker.HookElement('#singularitybtn') as HTMLImageElement;
-
-        if (!this.#singularityChallengeButtons)
-            this.#singularityChallengeButtons = await HSElementHooker.HookElements('#singularityChallenges > div.singularityChallenges > div') as HTMLDivElement[];
-
-        if (!this.#importSaveButton)
-            this.#importSaveButton = await HSElementHooker.HookElement('#importFileButton') as HTMLLabelElement;
-
-        if (this.#singularityEventHandler) {
-            this.#singularityButton.removeEventListener('click', this.#singularityEventHandler, { capture: true });
-
-            this.#singularityChallengeButtons.forEach((btn) => {
-                btn.removeEventListener('click', self.#singularityEventHandler!, { capture: true });
-            });
-
-            this.#singularityEventHandler = undefined;
-        }
-
-        // We do NOT remove the loadFromFileEventHandler here.
-        // It must remain active to intercept save loads even when GDS is disabled.
-        // if (this.#loadFromFileEventHandler) {
-        //    this.#importSaveButton.removeEventListener('click', this.#loadFromFileEventHandler, { capture: true });
-        //    this.#loadFromFileEventHandler = undefined;
-        // }
+        // The loadFromFileEventHandler is NOT removed here:
+        // it must remain active to intercept save loads even when GDS is disabled.
 
         HSLogger.info(`GDS turbo = OFF`, this.context);
         this.#gdsEnabled = false;
@@ -1064,96 +1005,6 @@ export class HSGameData extends HSModule {
             this.#enginePauses.delete(pauseReason);
         };
         this.#abortPendingImport = abortThisImport;
-    }
-
-    // Not used anymore ? Useful to keep ?
-    /**
-     * Ensures that GDS is temporarily disabled during a singularity action
-     * (to avoid data sync issues or conflicts), then re-enabled after a short delay.
-     * It also prevents users from performing a singularity while a challenge is active
-     * or when the button is disabled.
-     * @param e MouseEvent from the singularity button or challenge button click.
-     * @returns Promise<void>
-     */
-    async #singularityHandler(e: MouseEvent) {
-        const target = e.target as HTMLElement;
-
-        const challengeTargets = [
-            'noSingularityUpgrades',
-            'oneChallengeCap',
-            'limitedAscensions',
-            'noOcteracts',
-            'noAmbrosiaUpgrades',
-            'limitedTime',
-            'sadisticPrequel',
-            'taxmanLastStand',
-        ];
-
-        if (target) {
-            let canSingularity;
-            const styleString = target.getAttribute('style');
-
-            // User pressed singularity challenge button
-            if (target.id && challengeTargets.includes(target.id)) {
-                // User pressed active sing challenge button (is trying to quit or complete it)
-                if (styleString?.includes('orchid')) {
-                    canSingularity = true;
-                } else {
-                    // User pressed non-active sing challenge button
-                    // If any challenge is active, user can't sing
-                    const challengeButtons = this.#singularityChallengeButtons ?? Array.from(document.querySelectorAll('#singularityChallenges > div.singularityChallenges > div'));
-                    const anyChallengeActive = challengeButtons
-                        .map((btn) => challengeTargets.includes(btn.id) ? btn.getAttribute('style')?.includes('orchid') : false)
-                        .some((b => b === true));
-
-                    // User can't sing because they're trying to swap sing challenge
-                    if (anyChallengeActive) {
-                        canSingularity = false;
-                    } else {
-                        canSingularity = true;
-                    }
-                }
-            } else {
-                // User pressed the normal sing button
-                // Check if the button is grayed out
-                if (!styleString?.toLowerCase().includes('grayscale')) {
-                    canSingularity = true;
-                } else {
-                    canSingularity = false;
-                }
-            }
-
-            if (canSingularity) {
-                const gameDataSetting = HSSettings.getSetting("useGameData") as HSSetting<boolean>;
-
-                if (gameDataSetting && gameDataSetting.isEnabled()) {
-                    this.#wasUsingGDS = true;
-                    //this.#afterSingularityCheckerIntervalElapsed = 0;
-                    //clearInterval(this.#afterSingularityCheckerInterval);
-
-                    // From here on these are used
-                    gameDataSetting.disable({ preserveGameDataDependents: true });
-                    /*
-                    await HSUI.Notify('GDS temporarily disabled for Sing and will be re-enabled soon', {
-                        position: 'topRight',
-                        notificationType: 'warning'
-                    });*/
-
-                    await HSUtils.wait(4000);
-
-                    const gdsSetting = HSSettings.getSetting('useGameData') as HSSetting<boolean>;
-
-                    if (gdsSetting && this.#wasUsingGDS && !gdsSetting.isEnabled()) {
-                        HSLogger.debug(() => `Re-enabled GDS`, this.context);
-                        gdsSetting.enable();
-                    } else {
-                        HSLogger.debug(() => `GDS was already enabled (WoW fast!)`, this.context);
-                    }
-
-                    this.#wasUsingGDS = false;
-                }
-            }
-        }
     }
 
     // --- Subscription Management ---

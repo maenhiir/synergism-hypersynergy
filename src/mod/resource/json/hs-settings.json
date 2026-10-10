@@ -274,19 +274,6 @@
       "controlEnabledId": "hs-setting-use-game-data-btn"
     }
   },
-  "stopSniffOnError": {
-    "settingName": "stopSniffOnError",
-    "settingDescription": "Auto disable on error",
-    "settingHelpText": "When enabled, the mod will automatically disable game data sniffing if an error occurs. Recommended to be enabled as reading game data is not always reliable.",
-    "settingType": "boolean",
-    "enabled": false,
-    "settingControl": {
-      "controlType": "switch",
-      "controlGroup": "gamedata",
-      "controlPage": "gamedata",
-      "controlEnabledId": "hs-setting-stop-sniff-on-error-btn"
-    }
-  },
   "addTimeAutoLoadouts": {
     "settingName": "addTimeAutoLoadouts",
     "settingDescription": "Add+Time Amb loadouts auto-switch",
