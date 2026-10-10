@@ -23,7 +23,6 @@ export interface HSGlobalRelease {
 export interface HSGlobalGeneral {
     currentModVersion: string;
     isModFullyLoaded: boolean;
-    isDev: boolean;
     modGithubUrl: string;
     modWikiUrl: string;
     modWikiFeaturesUrl: string;

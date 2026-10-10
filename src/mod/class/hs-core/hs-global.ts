@@ -42,7 +42,6 @@ export const HSGlobal: IHSGlobal = class {
         // Version number bumping should be done in package.json.version
         currentModVersion: (typeof HS_BUILD_VERSION !== 'undefined') ? HS_BUILD_VERSION : '0.0.0',
         isModFullyLoaded: false,
-        isDev: ((window as any).__HS_IS_DEV ? (window as any).__HS_IS_DEV : false),
 
         // Wiki needs to be cloned !
         get modGithubUrl() { return `https://github.com/${HSGlobal.Release.githubOwner}/synergism-hypersynergy/`; },

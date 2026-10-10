@@ -986,7 +986,6 @@ function startBrowserLoader(options) {
     function loadMod() {
         const modSource = dev ? 'LOCAL DEV SERVER' : 'CDN';
         log(`Phase 6 — loading mod from ${modSource}...`);
-        if (dev) window.__HS_IS_DEV = true;
         window.__HS_REPO = window.__HS_REPO || (dev ? 'maenhiir' : 'Ferlieloi');
         window.__HS_VERSION = window.__HS_VERSION ? window.__HS_VERSION : 'master';
         return new Promise((resolve, reject) => {
