@@ -41,6 +41,9 @@ export class HSAmbrosia extends HSModule
 
     // Import through the game's dialogs (no exposedPlayer): up to 16 lines, each waiting up to ~1.5 s for its dialogs
     static readonly #GAME_IMPORT_TIME_LIMIT_MS = 120000;
+    // A single loadout goes into the slot the game marks as active; none is marked after a page load,
+    // and the slot guessed from the save (silver border) may be wrong, so the import is refused
+    static readonly #NO_ACTIVE_LOADOUT_REASON = 'No active loadout: load a loadout first';
 
     gameDataSubscriptionId?: string;
     #ambrosiaViewSubscriptionId?: string;
@@ -73,6 +76,8 @@ export class HSAmbrosia extends HSModule
     // #debugElement?: HTMLDivElement;
 
     activeLoadout?: AMBROSIA_LOADOUT_SLOT;
+    /** Whether the game marks activeLoadout as its active slot (rainbow border) or it's our guess from the save (silver). */
+    #activeLoadoutConfirmed = false;
 
     public quickbar: HSAmbrosiaQuickbar;
 
@@ -337,6 +342,7 @@ export class HSAmbrosia extends HSModule
 
         this.isInitialized = false;
         this.activeLoadout = undefined;
+        this.#activeLoadoutConfirmed = false;
     }
 
 
@@ -490,7 +496,8 @@ export class HSAmbrosia extends HSModule
             const gameSlot = this.#getGameActiveSlot();
             if (!gameSlot) return;
             const slotEnum = HSAmbrosiaHelper.getSlotEnumBySlotId(gameSlot.id);
-            if (slotEnum && slotEnum !== this.activeLoadout) this.updateActiveLoadout(slotEnum);
+            // Also when it marks the slot we guessed: the guess becomes confirmed (silver -> rainbow)
+            if (slotEnum && (slotEnum !== this.activeLoadout || !this.#activeLoadoutConfirmed)) this.updateActiveLoadout(slotEnum);
         };
 
         this.#gameActiveLoadoutObserver = new MutationObserver(syncFromGame);
@@ -504,6 +511,7 @@ export class HSAmbrosia extends HSModule
         // Ensure quickbar section is injected before manipulating DOM
         await this.#ensureAmbrosiaSection();
         this.activeLoadout = undefined;
+        this.#activeLoadoutConfirmed = false;
 
         // Clear visual state from both containers
         const containers = [
@@ -514,8 +522,8 @@ export class HSAmbrosia extends HSModule
 
         containers.forEach(container => {
             if (container) {
-                container.querySelectorAll('.hs-rainbow-border').forEach(slot => {
-                    slot.classList.remove('hs-rainbow-border');
+                container.querySelectorAll('.hs-rainbow-border, .hs-silver-border').forEach(slot => {
+                    slot.classList.remove('hs-rainbow-border', 'hs-silver-border');
                 });
             }
         });
@@ -529,6 +537,8 @@ export class HSAmbrosia extends HSModule
         if (!resolvedSlot) { HSLogger.warn('Invalid or unknown slot passed to #updateActiveLoadout: ' + slotEnum, this.context); return; }
 
         this.activeLoadout = resolvedSlot as AMBROSIA_LOADOUT_SLOT;
+        // Confirmed once the game marks this slot; until then (none marked after a page load) it's our guess from the save
+        this.#activeLoadoutConfirmed = this.#getGameActiveSlot()?.id === resolvedSlot;
 
         const isInjected = HSQuickbarManager.getInstance().isInjected("ambrosia");
         if (!isInjected) { HSLogger.warn("updateActiveLoadout() fail: quickbar not injected", this.context); return; }
@@ -536,7 +546,7 @@ export class HSAmbrosia extends HSModule
         const slotNumber = HSAmbrosiaHelper.getLoadoutNumberFromSlot(resolvedSlot);
         if (!slotNumber) { HSLogger.warn('Could not parse loadout number from resolvedSlot:' + resolvedSlot, this.context); return; }
 
-        this.quickbar.syncActiveSlot(slotNumber);
+        this.quickbar.syncActiveSlot(slotNumber, this.#activeLoadoutConfirmed);
 
         HSLogger.debug(() => 'Switched Ambrosia loadout to ' + resolvedSlot, this.context);
     }
@@ -1383,7 +1393,10 @@ export class HSAmbrosia extends HSModule
             const { importedCount, skippedCount, failures } = summary;
 
             // summary: imported/skipped/failed
-            if (failures.length > 0) {
+            if (isSingleLoadout && importedCount === 0 && failures.length === 1) {
+                // One line: its reason fits in the notification
+                HSUI.Notify(`Quick Import failed: ${failures[0].reason}`, { notificationType: 'warning' });
+            } else if (failures.length > 0) {
                 const failureSummary = failures.map(f => `#${f.index}: ${f.reason}`).join('; ');
                 // Short user-facing notification; detailed info logged for debugging
                 HSUI.Notify(`Imported ${importedCount} loadout(s); ${failures.length} failed (see logs)`, { notificationType: 'warning' });
@@ -1428,7 +1441,7 @@ export class HSAmbrosia extends HSModule
 
             const slotNumber = isSingleLoadout ? activeSlotNumber : i + 1;
             const result = slotNumber === undefined
-                ? { success: false, reason: 'No active loadout: load a loadout first' }
+                ? { success: false, reason: HSAmbrosia.#NO_ACTIVE_LOADOUT_REASON }
                 : this.#writeLoadout(slotNumber, line);
             if (!result.success) {
                 summary.failures.push({ index: i + 1, reason: result.reason ?? 'Unknown error' });
@@ -1502,14 +1515,6 @@ export class HSAmbrosia extends HSModule
         const previouslyActiveSlot = this.#getGameActiveSlot()
             ?? (this.activeLoadout ? document.getElementById(this.activeLoadout) as HTMLButtonElement | null : null);
         try {
-            let activeSlotIndex = 0;
-            if (isSingleLoadout && this.activeLoadout) {
-                const loadoutNumber = HSAmbrosiaHelper.getLoadoutNumberFromSlot(this.activeLoadout);
-                if (typeof loadoutNumber === 'number') {
-                    activeSlotIndex = loadoutNumber - 1;
-                }
-            }
-
             const fileInput = document.getElementById('importBlueberries') as HTMLInputElement;
             if (!fileInput) { throw new Error('Import input element not found'); }
 
@@ -1528,7 +1533,7 @@ export class HSAmbrosia extends HSModule
                 }
 
                 const result = isSingleLoadout
-                    ? await this.#importLoadoutLineToActiveSlot(loadoutData, activeSlotIndex)
+                    ? await this.#importLoadoutLineToActiveSlot(loadoutData)
                     : await this.#importLoadoutLine(loadoutData, i);
 
                 if (result.skipped) {
@@ -1544,25 +1549,16 @@ export class HSAmbrosia extends HSModule
             }
         } finally {
             HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
-            // The imports replaced the live tree: back to the loadout that was active
-            if (previouslyActiveSlot) this.#reloadLoadoutSlot(previouslyActiveSlot);
+            // The imports replaced the live tree: back to the loadout that was active (a refused or failed import changed nothing)
+            if (previouslyActiveSlot && summary.importedCount > 0) this.#reloadLoadoutSlot(previouslyActiveSlot);
         }
         return summary;
     }
 
-    async #importLoadoutLine(line: string, slotIndex?: number): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
-        let effectiveSlotIndex = slotIndex;
-
-        if (effectiveSlotIndex === undefined && this.activeLoadout) {
-            const loadoutNumber = HSAmbrosiaHelper.getLoadoutNumberFromSlot(this.activeLoadout);
-            if (typeof loadoutNumber === 'number') {
-                effectiveSlotIndex = loadoutNumber - 1;
-            }
-        }
-
-        const loadoutBtn = this.#loadoutsSlots[effectiveSlotIndex ?? -1] as HTMLButtonElement | undefined;
+    async #importLoadoutLine(line: string, slotIndex: number): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+        const loadoutBtn = this.#loadoutsSlots[slotIndex] as HTMLButtonElement | undefined;
         if (!loadoutBtn) {
-            HSLogger.warn(`Loadout slot element for index ${effectiveSlotIndex ?? -1} not found`, this.context);
+            HSLogger.warn(`Loadout slot element for index ${slotIndex} not found`, this.context);
             return { success: false, reason: 'Loadout slot element not found' };
         }
 
@@ -1578,17 +1574,19 @@ export class HSAmbrosia extends HSModule
 
     /**
      * Import a loadout into the game's active slot (the last loaded/saved one) with
-     * #blueberryQuickSave, without touching the loadout mode. Falls back to SAVE mode
-     * and a slot click when the game has no active slot yet (e.g. right after a page load).
+     * #blueberryQuickSave, without touching the loadout mode. Refused when the game has no active slot yet
+     * (e.g. right after a page load), as with the patched game. Falls back to SAVE mode and a click on
+     * the active slot when the quick save button is missing.
      */
-    async #importLoadoutLineToActiveSlot(line: string, fallbackSlotIndex?: number): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
-        const gameActiveSlot = this.#loadoutContainer?.querySelector<HTMLButtonElement>('.blueberryLoadoutSlot.activeBlueberryLoadout');
+    async #importLoadoutLineToActiveSlot(line: string): Promise<{ success: boolean; skipped?: boolean; reason?: string }> {
+        const gameActiveSlot = this.#getGameActiveSlot();
+        if (!gameActiveSlot) return { success: false, reason: HSAmbrosia.#NO_ACTIVE_LOADOUT_REASON };
         const quickSaveBtn = document.getElementById('blueberryQuickSave') as HTMLButtonElement | null;
 
-        if (!gameActiveSlot || !quickSaveBtn) {
+        if (!quickSaveBtn) {
             HSAmbrosiaHelper.ensureLoadoutMode('saveTree');
             try {
-                return await this.#importLoadoutLine(line, fallbackSlotIndex);
+                return await this.#importLoadoutLine(line, this.#loadoutsSlots.indexOf(gameActiveSlot));
             } finally {
                 HSAmbrosiaHelper.ensureLoadoutMode('loadTree');
             }

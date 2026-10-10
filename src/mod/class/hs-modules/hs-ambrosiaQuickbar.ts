@@ -185,9 +185,9 @@ export class HSAmbrosiaQuickbar {
 
         const cloneLoadoutButtons = clone.querySelectorAll(".blueberryLoadoutSlot") as NodeListOf<HTMLButtonElement>;
         cloneLoadoutButtons.forEach((button) => {
-            // Clones keep only our rainbow highlight (set by syncActiveSlot): a copied game class would
+            // Clones keep only our rainbow/silver highlight (set by syncActiveSlot): a copied game class would
             // stay frozen on the clone, styled by the game's CSS, while the real marker moves on.
-            button.classList.remove('activeBlueberryLoadout', 'hs-rainbow-border');
+            button.classList.remove('activeBlueberryLoadout', 'hs-rainbow-border', 'hs-silver-border');
             const buttonId = button.id;
             if (!preserveIds) {
                 button.id = `${HSGlobal.HSAmbrosia.quickBarLoadoutIdPrefix}-${buttonId}`;
@@ -348,20 +348,21 @@ export class HSAmbrosiaQuickbar {
     }
 
     /**
-     * Highlight the active slot on the quickbar clones (rainbow border). The game's own loadout bar
-     * already highlights it with its activeBlueberryLoadout class, so it is left untouched.
+     * Highlight the active slot on the quickbar clones: rainbow border once the game marks it (confirmed),
+     * silver while it's only guessed from the save, as the game marks no slot after a page load.
+     * The game's own loadout bar already highlights it with its activeBlueberryLoadout class, so it is left untouched.
      */
-    public syncActiveSlot(slotNumber: number): void {
+    public syncActiveSlot(slotNumber: number, confirmed: boolean): void {
         const quickBar = this.getQuickbarElement();
         if (!quickBar) { HSLogger.debug(() => 'Ambrosia quickbar not injected yet; nothing to sync', this.context); return; }
 
         const clonedSlots = quickBar.querySelectorAll('.blueberryLoadoutSlot');
-        clonedSlots.forEach((slot) => slot.classList.remove('hs-rainbow-border'));
+        clonedSlots.forEach((slot) => slot.classList.remove('hs-rainbow-border', 'hs-silver-border'));
 
         const clonedTargetId = `hs-ambrosia-quickbar-blueberryLoadout${slotNumber}`;
         const clonedTarget = quickBar.querySelector(`#${clonedTargetId}`);
         if (clonedTarget) {
-            clonedTarget.classList.add('hs-rainbow-border');
+            clonedTarget.classList.add(confirmed ? 'hs-rainbow-border' : 'hs-silver-border');
         } else {
             HSLogger.warn(`No active slot found in ambrosia quickbar for slot ${slotNumber}`, this.context);
         }

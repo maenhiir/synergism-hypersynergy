@@ -295,6 +295,7 @@ export class HSHeaterUIResult {
         const syncCloneSlot = (orig: HTMLElement, cloneSlot: HTMLElement | undefined) => {
             if (!cloneSlot) return;
             cloneSlot.classList.toggle('hs-rainbow-border', orig.classList.contains('hs-rainbow-border'));
+            cloneSlot.classList.toggle('hs-silver-border', orig.classList.contains('hs-silver-border'));
             cloneSlot.classList.toggle('hs-ambrosia-slot', orig.classList.contains('hs-ambrosia-slot'));
             cloneSlot.style.backgroundImage = orig.style.backgroundImage;
         };
