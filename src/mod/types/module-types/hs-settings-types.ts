@@ -20,6 +20,8 @@ export interface HSSettingsDefinition {
     autoConfirmPopups: AutoConfirmPopupsSetting;
 
     // UI Settings
+    hideGameDialogs: HideGameDialogsSetting;
+    hideGameDialogsNotify: HideGameDialogsNotifySetting;
     hiddenVanillaTabs: HiddenVanillaTabsSetting;
     autoDismissOfflinePopup: AutoDismissOfflinePopupSetting;
 
@@ -182,6 +184,8 @@ export interface ShowDebugLogsSetting extends HSSettingBase<boolean> { }
 export interface ReactiveMouseHoverSetting extends HSSettingBase<number> { }
 export interface AutoclickSetting extends HSSettingBase<number> { }
 export interface AutoClickIgnoreElementsSetting extends HSSettingBase<boolean> { }
+export interface HideGameDialogsSetting extends HSSettingBase<boolean> { }
+export interface HideGameDialogsNotifySetting extends HSSettingBase<boolean> { }
 export interface HiddenVanillaTabsSetting extends HSSettingBase<string[]> { }
 export interface AutoDismissOfflinePopupSetting extends HSSettingBase<boolean> { }
 

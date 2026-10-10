@@ -75,6 +75,8 @@ export interface HSGlobalMouse {
     autoClickIgnoredElements: string[];
 }
 
+export interface HSGlobalHiddenDialogs extends IStoreable { }
+
 export interface HSGlobalAmbrosia extends IStoreable {
     quickBarId: string;
     quickBarLoadoutIdPrefix: string;
@@ -152,6 +154,7 @@ export interface IHSGlobal {
     HSStorage: HSGlobalStorage;
     HSSettings: HSGlobalSettings;
     HSMouse: HSGlobalMouse;
+    HSHiddenDialogs: HSGlobalHiddenDialogs;
     HSAmbrosia: HSGlobalAmbrosia;
     HSGameData: HSGlobalGameData;
     HSUI: HSGlobalHSUI;

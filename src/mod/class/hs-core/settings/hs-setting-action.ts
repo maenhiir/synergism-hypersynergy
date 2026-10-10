@@ -12,6 +12,7 @@ import { HSSettingsUI } from "./hs-settings-ui";
 import { HSQOLButtons } from "../../hs-modules/hs-qolButtons";
 import { HSGlobal } from "../hs-global";
 import { HSUtils } from "../../hs-utils/hs-utils";
+import { HSHiddenDialogs } from "../dialogs/hs-hidden-dialogs";
 
 /**
  * Class: HSSettingActions
@@ -57,6 +58,12 @@ export class HSSettingActions {
                     HSLogger.warn("autoConfirmPopups enabled, but __HS_AUTO_CONFIRM not patched", context);
                 }
             }
+        },
+
+        // "Hide game dialogs": the checkbox in the game's Confirm and Alert, and the hidden dialogs answered.
+        // Also run at load, which adds the ready-made entries a newer mod version brought.
+        hideGameDialogs: async (params: HSSettingActionParams) => {
+            HSHiddenDialogs.setEnabled(!params.disable);
         },
 
         logTimestamp: async (params: HSSettingActionParams) => {

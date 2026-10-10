@@ -46,6 +46,34 @@
       "controlPage": "ui"
     }
   },
+  "hideGameDialogs": {
+    "settingName": "hideGameDialogs",
+    "settingDescription": "Hide game dialogs",
+    "settingHelpText": "Adds a 'Don't show again' / 'Always confirm' checkbox to the game's Confirm and Alert dialogs. Hidden dialogs are answered OK without being shown. Turning this on also hides a ready-made list of useless dialogs. The list of hidden dialogs is below.",
+    "settingType": "boolean",
+    "enabled": false,
+    "settingAction": "hideGameDialogs",
+    "settingControl": {
+      "controlType": "switch",
+      "controlGroup": "ui",
+      "controlPage": "ui",
+      "controlEnabledId": "hs-setting-hide-game-dialogs-btn"
+    }
+  },
+  "hideGameDialogsNotify": {
+    "settingName": "hideGameDialogsNotify",
+    "settingBlockId": "hs-setting-block-hide-game-dialogs-notify",
+    "settingDescription": "Show hidden dialogs as notifications",
+    "settingHelpText": "When a hidden Alert is answered, its text is shown as a notification instead (e.g. how many levels a multi-buy purchased). Hidden Confirms are never shown.",
+    "settingType": "boolean",
+    "enabled": false,
+    "settingControl": {
+      "controlType": "switch",
+      "controlGroup": "ui",
+      "controlPage": "ui",
+      "controlEnabledId": "hs-setting-hide-game-dialogs-notify-btn"
+    }
+  },
   "hiddenVanillaTabs": {
     "settingName": "hiddenVanillaTabs",
     "settingDescription": "Hide vanilla tabs",

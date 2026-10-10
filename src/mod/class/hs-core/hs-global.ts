@@ -242,6 +242,11 @@ export const HSGlobal: IHSGlobal = class {
         ]
     }
 
+    // HSHiddenDialogs
+    static HSHiddenDialogs = {
+        storageKey: 'hidden-dialogs',
+    }
+
     // HSAmbrosia
     static HSAmbrosia = {
         storageKey: 'ambrosia-loadouts',

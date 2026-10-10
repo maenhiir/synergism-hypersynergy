@@ -305,6 +305,11 @@ export class HSUtils {
         return file;
     }
 
+    /** A whole game translation file (e.g. 'en'), fetched as the game does and cached. Undefined if unreachable. */
+    static getGameTranslationFile(lang: string): Promise<Record<string, unknown> | undefined> {
+        return this.#loadTranslationFile(lang);
+    }
+
     /**
      * Get a game UI string (e.g. 'ambrosia.importTree.success') in the player's language.
      * Uses the game's i18next when the patcher exposed it, else the game's translation files,

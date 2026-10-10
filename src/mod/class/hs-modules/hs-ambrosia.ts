@@ -39,6 +39,9 @@ interface HSQuickImportSummary {
 export class HSAmbrosia extends HSModule
     implements HSPersistable, HSGameDataSubscriber {
 
+    // Import through the game's dialogs (no exposedPlayer): up to 16 lines, each waiting up to ~1.5 s for its dialogs
+    static readonly #GAME_IMPORT_TIME_LIMIT_MS = 120000;
+
     gameDataSubscriptionId?: string;
     #ambrosiaViewSubscriptionId?: string;
 
@@ -1374,7 +1377,8 @@ export class HSAmbrosia extends HSModule
                 summary = this.#importLinesDirect(lines, isSingleLoadout);
             } else {
                 if (this.#refuseGameImportDuringAutosing()) return;
-                summary = await this.#importLinesThroughGame(lines, isSingleLoadout);
+                summary = await HSGameDialogs.run('quickImport', { timeLimitMs: HSAmbrosia.#GAME_IMPORT_TIME_LIMIT_MS },
+                    () => this.#importLinesThroughGame(lines, isSingleLoadout));
             }
             const { importedCount, skippedCount, failures } = summary;
 
@@ -1487,7 +1491,8 @@ export class HSAmbrosia extends HSModule
 
     /**
      * Without the patched game (bookmarklet): imports each line through the game's tree import and reads its
-     * result Alert, then saves it into its slot. Several lines need SAVE mode: the game can't load an empty slot
+     * result Alert, then saves it into its slot. Runs inside HSGameDialogs.run(), so hidden dialogs (the import's
+     * success Alert, the overwrite Confirm) are left shown for it to read and answer. Several lines need SAVE mode: the game can't load an empty slot
      * (an empty tree is invalid), so load + quick save can't target one. Never while autosing runs: its loadout
      * switches would save into its slots.
      */
@@ -1712,7 +1717,8 @@ export class HSAmbrosia extends HSModule
                     : { success: false, reason: summary.failures[0]?.reason ?? 'Empty loadout' };
             } else {
                 if (this.#refuseGameImportDuringAutosing()) return { success: false, reason: 'Auto-Sing is running' };
-                result = await this.#importLoadoutLineToActiveSlot(loadout);
+                result = await HSGameDialogs.run('quickImport', { timeLimitMs: HSAmbrosia.#GAME_IMPORT_TIME_LIMIT_MS },
+                    () => this.#importLoadoutLineToActiveSlot(loadout));
             }
             if (!result.success) {
                 HSLogger.warn(`importLoadoutToActiveSlot failed: ${JSON.stringify({ source: 'importLoadoutToActiveSlot', reason: result.reason })}`, this.context);

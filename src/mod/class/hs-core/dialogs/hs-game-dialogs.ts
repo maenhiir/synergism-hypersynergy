@@ -1,4 +1,5 @@
 import { HSLogger } from "../hs-logger";
+import { HSHiddenDialogs, HSHideableDialogKind } from "./hs-hidden-dialogs";
 
 export type HSDialogKind = 'confirm' | 'alert' | 'infoAlert' | 'prompt' | 'purchasePrompt';
 
@@ -24,11 +25,17 @@ export interface HSDialogRunOptions {
     timeLimitMs?: number;
 }
 
-/** Recorded when a dialog is queued: the session claiming it, and whether autosing was active. */
+/**
+ * Recorded when a dialog is queued: the session claiming it, whether autosing was active, whether a run() held
+ * the lock, and for the other Confirms and Alerts (hidden dialogs setting on) their translation keys and text.
+ */
 interface HSDialogOrigin {
     session?: HSDialogSession;
     answers?: HSDialogAnswers;
     autosing: boolean;
+    lockHeld?: boolean;
+    keys?: string[];
+    text?: unknown;
 }
 
 /** A session's claim on the dialogs queued while it acts (see HSGameDialogs.#getOrigin). */
@@ -78,8 +85,10 @@ export class HSDialogSession {
  *     Shares the game's dialog queue (Confirm, Alert, InfoAlert, Prompt, PurchasePrompt) between mod features.
  *     With the patcher's dialog hook, each dialog's origin is recorded when it's queued (the mod session claiming
  *     it, whether autosing was active), and the mod can answer it before it's shown: a session's dialogs get its
- *     answers, and while autosing is active every other Confirm and Alert is answered.
- *     Without the hook (bookmarklet, older patcher), sessions answer their dialogs through the DOM.
+ *     answers, and while autosing is active every other Confirm and Alert is answered. Outside autosing, the
+ *     Confirms and Alerts the player chose to hide (HSHiddenDialogs) are answered too.
+ *     Without the hook (bookmarklet, older patcher), sessions answer their dialogs through the DOM, and hidden
+ *     dialogs are answered once shown.
  *     Features use act() for synchronous actions, and run() for longer ones: run() waits for an idle queue and
  *     holds a lock, so two features never interleave their dialogs.
  *     Design: docs/git-ignore/dialog-queue-design.md
@@ -96,6 +105,8 @@ export class HSGameDialogs {
 
     static #autosingActive = false;
     static #watcherInterval: number | null = null;
+    // Without the hook: the Confirm or Alert last handled by #checkShownDialog (kind and text)
+    static #lastShownDialog: string | null = null;
     static #origins = new WeakSet<HSDialogOrigin>();
     static #actWindows: HSActWindow[] = [];
     static #taskEndChannel: MessageChannel | null = null;
@@ -119,7 +130,7 @@ export class HSGameDialogs {
         HSGameDialogs.#initialized = true;
 
         HSGameDialogs.#hookPatched = !!(window as any).__HS_DIALOG_HOOK_PATCHED;
-        (window as any).__HS_dialogOrigin = (kind: HSDialogKind) => HSGameDialogs.#getOrigin(kind);
+        (window as any).__HS_dialogOrigin = (kind: HSDialogKind, firstArg?: unknown) => HSGameDialogs.#getOrigin(kind, firstArg);
         (window as any).__HS_onDialog = (kind: HSDialogKind, origin: unknown) => HSGameDialogs.#onDialog(kind, origin);
 
         HSGameDialogs.#box = document.getElementById('confirmationBox');
@@ -130,6 +141,7 @@ export class HSGameDialogs {
         } else {
             HSLogger.warn('#confirmationBox not found: the queue is always seen as idle', HSGameDialogs.#context);
         }
+        if (!HSGameDialogs.#hookPatched) HSGameDialogs.#observeShownDialogs();
 
         if (HSGameDialogs.#hookPatched) {
             HSLogger.log('Game dialog hook available', HSGameDialogs.#context);
@@ -236,14 +248,26 @@ export class HSGameDialogs {
     /**
      * Called when a dialog is queued: the session acting right now, or earlier in the same task and event,
      * that claims this kind, and whether autosing is active (so a dialog autosing queued right before a stop
-     * is still answered).
+     * is still answered). For the other dialogs: whether a run() holds the lock, and their hidden dialogs keys
+     * (never looked up during autosing, which answers first).
      */
-    static #getOrigin(kind: HSDialogKind): HSDialogOrigin | undefined {
+    static #getOrigin(kind: HSDialogKind, firstArg: unknown): HSDialogOrigin | undefined {
         try {
             const claim = HSGameDialogs.#claim(kind, window.event);
-            const origin: HSDialogOrigin = claim
-                ? { session: claim.session, answers: claim.answers, autosing: HSGameDialogs.#autosingActive }
-                : { autosing: HSGameDialogs.#autosingActive };
+            const autosing = HSGameDialogs.#autosingActive;
+            let origin: HSDialogOrigin;
+            if (claim) {
+                origin = { session: claim.session, answers: claim.answers, autosing };
+            } else if (autosing) {
+                origin = { autosing };
+            } else {
+                const keys = HSHiddenDialogs.identify(kind, firstArg);
+                origin = { autosing, lockHeld: !!HSGameDialogs.#lockHolder };
+                if (keys) {
+                    origin.keys = keys;
+                    origin.text = firstArg;
+                }
+            }
             HSGameDialogs.#origins.add(origin);
             return origin;
         } catch (error) {
@@ -297,14 +321,27 @@ export class HSGameDialogs {
                 // Prompts and PurchasePrompts: the mod can't guess their value
                 if (kind === 'confirm') answer = 'ok';
                 else if (kind === 'alert') answer = 'dismiss';
+            } else if (!origin.lockHeld && origin.keys && HSGameDialogs.#isHideable(kind)
+                && HSHiddenDialogs.isHidden(kind, origin.keys)) {
+                // A dialog the player chose to hide. Not while a run() holds the lock: that feature may read it
+                answer = kind === 'confirm' ? 'ok' : 'dismiss';
+                HSHiddenDialogs.onHidden(kind, origin.keys, origin.text);
             }
 
-            if (answer === undefined || answer === 'show') return undefined;
+            if (answer === undefined || answer === 'show') {
+                // Shown right after this returns: offer the checkbox if the dialog was identified
+                if (HSGameDialogs.#isHideable(kind)) HSHiddenDialogs.onShown(kind, origin.session ? undefined : origin.keys);
+                return undefined;
+            }
             return { value: HSGameDialogs.#toValue(kind, answer) };
         } catch (error) {
             HSLogger.warn(`Dialog hook failed, dialog shown: ${error}`, HSGameDialogs.#context);
             return undefined;
         }
+    }
+
+    static #isHideable(kind: HSDialogKind): kind is HSHideableDialogKind {
+        return kind === 'confirm' || kind === 'alert';
     }
 
     static #orphanAnswer(kind: HSDialogKind): HSDialogAnswer {
@@ -385,6 +422,54 @@ export class HSGameDialogs {
         }
         const buttonId = answer === 'cancel' ? ids.cancel : ids.ok;
         if (buttonId) (document.getElementById(buttonId) as HTMLButtonElement | null)?.click();
+    }
+
+    // ── Hidden dialogs without the hook ──────────────────────────────────────────────────────────────
+
+    /**
+     * Without the hook, a hidden dialog can only be answered once shown. The box observer misses a dialog that
+     * opens as the previous one closes (the box looks open all along), so the Confirm and Alert wrappers and
+     * texts are watched too, and each opening is handled once.
+     */
+    static #observeShownDialogs(): void {
+        const observer = new MutationObserver(() => HSGameDialogs.#checkShownDialog());
+        for (const kind of ['confirm', 'alert'] as HSHideableDialogKind[]) {
+            const wrapper = document.getElementById(HSGameDialogs.#domIds[kind].wrapper);
+            const text = document.querySelector(`#${kind} > p`);
+            if (wrapper) observer.observe(wrapper, { attributes: true, attributeFilter: ['style'] });
+            if (text) observer.observe(text, { childList: true, characterData: true, subtree: true });
+        }
+    }
+
+    static #checkShownDialog(): void {
+        const kind = (['confirm', 'alert'] as HSHideableDialogKind[])
+            .find(k => document.getElementById(HSGameDialogs.#domIds[k].wrapper)?.style.display === 'block');
+        if (!kind || HSGameDialogs.isQueueIdle()) {
+            HSGameDialogs.#lastShownDialog = null;
+            return;
+        }
+        const text = document.querySelector(`#${kind} > p`)?.textContent ?? '';
+        const signature = `${kind}:${text}`;
+        if (signature === HSGameDialogs.#lastShownDialog) return;
+        HSGameDialogs.#lastShownDialog = signature;
+
+        // A session's dialog is answered by #answerShownByDom, autosing's by the watcher
+        if (HSGameDialogs.#autosingActive || HSGameDialogs.#claimsShown(kind)) return;
+        const keys = HSHiddenDialogs.identify(kind, text);
+        // Not while a run() holds the lock: that feature may read the dialog
+        if (!HSGameDialogs.#lockHolder && keys && HSHiddenDialogs.isHidden(kind, keys)) {
+            HSGameDialogs.#lastShownDialog = null;
+            (document.getElementById(HSGameDialogs.#domIds[kind].ok) as HTMLButtonElement | null)?.click();
+            HSHiddenDialogs.onHidden(kind, keys, text);
+            return;
+        }
+        HSHiddenDialogs.onShown(kind, keys);
+    }
+
+    /** An act window claims a dialog of this kind right now (without using up a Prompt value). */
+    static #claimsShown(kind: HSDialogKind): boolean {
+        return HSGameDialogs.#actWindows.some(actWindow => actWindow.answers[kind] !== undefined
+            && (actWindow.running || actWindow.event === window.event));
     }
 
     // ── Dialog watcher (no patch at all) ─────────────────────────────────────────────────────────────
