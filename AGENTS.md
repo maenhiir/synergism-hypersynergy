@@ -63,6 +63,7 @@ Prefer the game's state (`HSGlobal.exposedPlayer`, GDS data) or signals it keeps
 - **`HSLogger` lines are HTML**: escape with `escapeLogText`, not `escapeHtml`. A new log context needs a colour entry.
 - **Injected CSS lands late**: a module drawing game-styled elements during `init` injects its CSS and calls `HSUI.flushInjectedStyles()` first.
 - **Settings are data**: `hs-settings.json` + `HSSettingsDefinition`; a `settingAction` needs a handler and a `settingControl`, even when hidden; no double quote in a help text.
+- **Game icons**: reuse one through `HSIcons`, read from the game's element by its id (`docs/dev/sprite-icons.md`).
 
 ### GDS (Game Data Sniffing): `hs-core/gds/` (`docs/features/gds.md`)
 - `HSGameData` reads the live player every 500 ms when patched, else captures the save. The live player is the same object at every read: never key a cache by it. `HSGameDataAPIPartial` is the actual API, `HSGameDataAPI` the game-formula calculations.

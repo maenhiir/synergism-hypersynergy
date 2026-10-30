@@ -2,7 +2,7 @@
 
 A QoL mod for the [Synergism](https://synergism.cc/) game ([game's GitHub](https://github.com/Pseudo-Corp/SynergismOfficial)).
 
-![image](https://github.com/Ferlieloi/synergism-hypersynergy/blob/master/doc/img/logo.gif?raw=true)
+![image](guides/img/logo.gif)
 
 ## About the mod
 
