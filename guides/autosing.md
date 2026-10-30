@@ -1,0 +1,83 @@
+# Auto-Sing
+
+Auto-Sing plays singularities for you, following a strategy. It's for the end game: S216+, and it only works fully once you've cleared EXALT6. It needs Tampermonkey or Steam: with the bookmark, it's slow and unreliable.
+
+## Getting started
+
+1. Open the mod panel (the mod's icon, top left), then Settings → **Auto-Sing**.
+2. **Strategy:** pick one. The default strategies are a place to start; some of them are meant for the very end of the game. To make your own, see [Making your own strategy](#making-your-own-strategy).
+3. **Ambrosia loadouts:** for each role (pre-AOAG cubes, post-AOAG cubes, quarks, obtainium, offerings, luck), pick the game slot that holds that loadout. The Ambrosia Heater (Tools tab) finds the best ones for your save. Each loadout switch resets the ambrosia bars' progress. If you don't want that, tick **Don't switch ambrosia loadouts**: Auto-Sing then never switches.
+4. Turn on **Start/Stop Auto-Sing**, or click ▶ in the menu by the mod's icon.
+
+The Auto-Sing window shows the time per singularity and the quarks and golden quarks gained per second. Its buttons: ⏸️ pause, 🔄 restart the singularity, 🟠 stop at the end of this singularity, 🔴 stop now, 📊 details.
+
+## Which singularity to farm
+
+- Start low: a singularity should take 15 to 20 seconds at most. That can be 30 singularities below your highest, and that's normal.
+- Then go up one singularity at a time, as long as golden quarks per second keep going up.
+- Wait for 10 to 15 singularities before you compare: one singularity alone varies too much.
+
+## Keep the game running
+
+The browser slows down a game that is hidden, minimized or on a screen that turned off, and Auto-Sing slows down with it.
+- Keep the screen on.
+- Keep the game window in view. A tool that keeps it on top helps, like PowerToys (Always on Top) or DeskPins; you can tuck the window in a corner of your screen.
+
+## Making your own strategy
+
+### How Auto-Sing follows a strategy
+
+A strategy is a list of **phases**. Each phase covers a part of the singularity, from one game stage to another. To see your current stage: the game's Settings → Stats for Nerds → Miscellaneous.
+
+- Phases follow each other: the first starts at "start", each one starts where the previous one ends, and the last one ends at "end".
+- Auto-Sing reads the current stage, runs the steps of the phase that covers it from top to bottom, then reads the stage again. A phase runs again as long as the stage stays in its range.
+- A phase doesn't reset by itself. Only Ascend, Exit Ascension challenge, entering an ascension challenge and "Set corruption level" (with Ascend immediately) do.
+- **AOAG phase:** once the AOAG rune is unlocked (P4x5), Auto-Sing stops the current phase and runs the AOAG phase, then the phase that ends at "end".
+- At the end, Auto-Sing switches to your Quark loadout, ascends and exports the save for the bonus quarks, then starts a new singularity.
+
+### The strategy window
+
+In Settings → Auto-Sing:
+- **➕ Create** opens a blank strategy.
+- **✏️ Edit** opens the selected one. Default strategies can't be changed: Edit opens a copy that you save under a new name.
+- **📤 Export** copies the strategy to share it; **📥 Import** adds one from a copy.
+
+In the window:
+- **Strategy Name** at the top.
+- Each row is a phase: **Phase N: start → [end ▾] [✎ k steps] [×]**. Change a phase's end with its dropdown, open its steps with ✎, delete it with ×.
+- **Add phase until… ▾** adds the next phase. The round **+** on a phase's left border inserts a phase inside it.
+- "0 steps" in red: a phase needs at least one step.
+- **Create Strategy** / **Update Strategy** saves. A strategy must go all the way to "end".
+
+### The actions window (✎)
+
+Steps run from top to bottom. Pick a **Special Action**, fill in the fields shown, then click **Add** (or press Enter). New steps go where **Add Here** is; drag it to add elsewhere.
+
+**None** = a challenge step:
+- **Challenge #**: the challenge (1–15).
+- **Min Completions**: stay in it until it has this many. 0 = enter it, then wait.
+- **Wait before (ms)**: wait before the step starts.
+- **Wait inside (ms)**: once Min Completions is reached, wait this long before the next step.
+- **Max Time (ms)**: go to the next step after this long, even if Min Completions isn't reached (Wait before not counted).
+
+The other actions are grouped in the dropdown (Exit and Ascend, Game actions, Challenges, Ambrosia loadouts, Corruption level…). Each shows only the fields it uses. A few:
+- **601-610 - C1-C10 until no more completions**: runs one of C1–C10 until it stops getting completions.
+- **403 - Set corruption level**: sets the level used from the next ascension. With **Ascend immediately** ticked, it ascends right away (or leaves the current ascension challenge). Set the actual level: the game adds your free levels on top.
+- **Store C15**: keeps C15's current score for an IF step to compare against.
+
+#### If-jump steps
+
+An If-jump step (an IF row in the list) jumps to its **Jump here** row when its condition holds, else the steps continue below it.
+- **Challenges** mode: compares a challenge's completions (If Challenge) with Value, using > or <.
+- **Stored C15 value** mode: compares C15's current score with the stored score × 10^Multiplier.
+- The IF row says where it jumps (→ step N), and the Jump here row which IF it belongs to: click either one to see the other. ↺ means the IF jumps back (a loop).
+- Drag the Jump here row to choose where it jumps. If you move a step, the IF doesn't follow it.
+
+#### Editing steps
+
+- ✎ on a step loads it into the fields: change them, then **Update step N**.
+- ⧉ duplicates a step, × deletes it, ⋮⋮ drags it.
+- Undo / Redo (Ctrl+Z / Ctrl+Y) are at the bottom, next to **Fixed time**: the time the phase spends waiting, IF jumps not followed.
+- Comments are just for you.
+
+**Save** in the actions window only keeps your changes in the strategy window. Click **Update Strategy** (or **Create Strategy**) there to save for good.

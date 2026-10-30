@@ -1,6 +1,6 @@
 # Autosing (`hs-modules/hs-autosing/`)
 
-The autosing docs: `autosing.md` (the run), `autosing-strategies.md` (strategy format, conversions, default strategies), `autosing-editor.md` (strategy and actions windows). Autosing's place in the dialog queue: `docs/features/dialogs.md`.
+The autosing docs: `autosing.md` (the run), `autosing-strategies.md` (strategy format, conversions, default strategies), `autosing-editor.md` (strategy and actions windows). Players' guide: `guides/autosing.md`, updated with any change players see. Autosing's place in the dialog queue: `docs/features/dialogs.md`.
 
 Singularity automation driven by JSON "strategies" (`autosing-strategies.md`). The main loop is in `hs-autosing.ts`, the run panel (timer window) in `hs-autosingModal.ts`.
 
