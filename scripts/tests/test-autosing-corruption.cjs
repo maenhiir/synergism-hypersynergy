@@ -295,6 +295,55 @@ async function main() {
         assert.deepEqual(HSStrategyManager.normalizeCorruptions(JSON.parse(JSON.stringify(deferred))), deferred);
         scenarios++;
 
+        // Strategies from before the game's 4.4.0: removed steps pull later IF targets up, the step added at a
+        // phase's start pushes them down. Each step reads [action, level, IF target].
+        const legacy = { strategyName: 'legacy', corruptionLoadouts: [{ name: 'Push', level: 12 }, { name: 'Bad', level: -1 }], strategy: [
+            { ...phase([
+                step(402),
+                step(400),
+                step(202, { loadoutName: 'Push' }),
+                step(202, { loadoutName: 'Gone' }),
+                step(401),
+                step(200, { ifJump: { id: 'a', ifJumpIndex: 4 } }),
+                step(200, { ifJump: { id: 'a2', ifJumpIndex: 3 } }),
+            ]), corruptionLoadoutName: 'Push' },
+            { ...phase([step(401), step(200, { ifJump: { id: 'b', ifJumpIndex: 0 } })]), corruptionLevel: 30 },
+            { ...phase([step(401), step(152), step(200, { ifJump: { id: 'c', ifJumpIndex: 1 } })]), corruptionLoadoutName: null },
+            { ...phase([step(202, { loadoutName: 'Bad', comment: 'kept' }), step(200, { ifJump: { id: 'd', ifJumpIndex: 0 } })]),
+                corruptionLoadoutName: 'Missing', corruptionLevel: 7 },
+            { ...phase([step(152)]), corruptions: [1, 2, 3, 4, 5, 6, 7, 8] },
+            phase([step(401), step(152)]),
+        ], aoagPhase: { ...phase([step(401), step(400)]), corruptionLevel: 50 } };
+        const converted = HSStrategyManager.normalizeCorruptions(legacy);
+        const steps = entry => entry.strat.map(action => [action.challengeNumber, action.corruptionLevel, action.ifJump?.ifJumpIndex]);
+        assert.deepEqual(converted.strategy.map(steps), [
+            // First phase: its level isn't added (autosing starts at 0); the jump to the 401 step still reaches it,
+            // and a jump to a removed step (it did nothing) goes to the step after it
+            [[403, 0, undefined], [403, 12, undefined], [403, 12, undefined], [200, undefined, 2], [200, undefined, 2]],
+            [[403, 30, undefined], [403, 30, undefined], [200, undefined, 1]],
+            // An empty level: its 401 step did nothing and goes
+            [[152, undefined, undefined], [200, undefined, 0]],
+            // A missing loadout name keeps the phase's level; a loadout with an invalid level gives 0
+            [[403, 7, undefined], [403, 0, undefined], [200, undefined, 1]],
+            // 8 corruption values don't make one level: 0, to set in the editor
+            [[403, 0, undefined], [152, undefined, undefined]],
+            // Current format: no phase level
+            [[152, undefined, undefined]],
+        ]);
+        assert.deepEqual(steps(converted.aoagPhase), [[403, 50, undefined], [403, 0, undefined]]);
+        assert.equal(converted.strategy[0].strat[1].comment, 'Push', 'a loadout step keeps its name as comment');
+        assert.equal(converted.strategy[3].strat[1].comment, 'kept');
+        for (const entry of [...converted.strategy, converted.aoagPhase]) {
+            assert.ok(!('corruptionLevel' in entry) && !('corruptionLoadoutName' in entry) && !('corruptions' in entry));
+            assert.ok(entry.strat.every(action => !('loadoutName' in action)));
+            assert.ok(entry.strat.filter(action => action.challengeNumber === 403).every(action => action.ascendAfterCorruption === true));
+        }
+        assert.ok(!('corruptionLoadouts' in converted));
+        assert.equal(HSStrategyManager.hasLegacyCorruptions(legacy), true);
+        assert.equal(HSStrategyManager.hasLegacyCorruptions(converted), false);
+        assert.deepEqual(HSStrategyManager.normalizeCorruptions(converted), converted);
+        scenarios++;
+
         const directory = path.join(root, 'src/mod/resource/json/strategies');
         for (const filename of fs.readdirSync(directory).filter(name => name.endsWith('.json') && name !== 'manifest.json')) {
             const strategy = JSON.parse(fs.readFileSync(path.join(directory, filename), 'utf8'));
