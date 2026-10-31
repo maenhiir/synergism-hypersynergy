@@ -7,6 +7,22 @@
 - `HSGameData` also manages "me", pseudo, campaign and event data (bells and the global event come from the game itself: "Requests to synergism.cc").
 - The "[HS] Perma-saved by GDS" CSS is applied only on the save source (the live source clicks no Save).
 
+## Sustained Ambrosia income
+
+`hs-ambrosia-bar-income.ts` is shared by the Ambrosia page, its header rates and Heater's income objectives.
+It estimates the long-run average with stats, upgrades, loadout and routing held fixed. Initial partial bars and
+saved tank contents are transient stock, not a permanent income bonus or a candidate-loadout penalty. A sustained
+regime can have full tanks, empty tanks, or a repeating fill/drain cycle.
+
+Without overcap, the calculator solves the supply and reward feedback equations. With overcap and both inputs
+routed, `hs-ambrosia-reactor-income.ts` preserves the game's reaction stages: route both inputs, normal reaction,
+overflow against remaining opposite stock, extraction, zero-time rebates, regular fills, then zero-time fusion.
+Unmatched excess returns to the regular bars. Empty ticks and ordinary two-tick tank cycles are batched; bounded
+feedback sampling and resource conservation estimate sustained fills without simulating every elapsed second.
+RNG rewards use their expected value. These are fixed-stat sustained estimates, not an exact next-hour forecast
+with changing lifetime stats or random rewards. Tests use the upstream reactor fixture, including rare rebate
+bursts, fusion, Two Mind and Bar Dependence.
+
 ## One type for the player's data (`hs-player-savedata.ts`)
 - `GameData` (deeply read-only) is what `getGameData()` returns, on both sources; `PlayerData` (`exposedPlayer`) is the same fields, writable. Fields shaped differently on the two sources are `GameDecimal` / `GameCount`. Other save-data types live in `src/mod/types/data-types/`.
 - Vanilla fields no feature reads are left out; their list is dated in a comment above `GameDataFields`.

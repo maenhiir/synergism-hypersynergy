@@ -60,9 +60,12 @@ one clone to another: check `git remote -v`.
   release. When Dev didn't touch the package files or the bundle since the last merge, git takes Live's silently: set
   the version by hand anyway and `git checkout master -- release/mod/hypersynergism_release.js`. A file split or moved
   on Dev comes back as a modify/delete conflict: port Live's change into the new files, then `git rm` the old one.
+- **Except when Live has all the Dev code** (Dev's commits since are docs or tests only): keep Live's bundle, so Dev
+  players get the Live release without a Dev release, and push Live's stable tag to the Dev repo after `master`
+  (`git push origin vX`), so their version check sees it. Otherwise stable tags are not pushed to the Dev repo: the tag
+  would name a build Dev doesn't serve.
 - **`git checkout --ours <file>` takes the whole file**, dropping what merged cleanly from Live's side (it once dropped
   a script line in `package.json`): compare with Live's `master` after resolving.
-- The fetch brings Live's stable tag into the local repo; stable tags are not pushed to the Dev repo.
 - Verify (`npx tsc --noEmit`, `npm test`, `npm run build`) before the merge commit.
 
 ## Porting a change to Live (PR or direct release)
@@ -76,7 +79,8 @@ one clone to another: check `git remote -v`.
   commit.
 - **One topic per PR. No release bundle in a PR**: Ferlieloi builds his own release.
 - Loader tests fail in a fresh worktree until `synergism_modloader` has its `node_modules`: not a regression.
-- The Tools tab calculations don't exist on Live: check GDS changes there with the node harness.
+- Check the target revision's Tools tab definitions before assuming a calculation is available there. Live includes
+  the Tools tab; the node harness can also check GDS changes directly on a save.
 - **Releasing on Live directly** (Shewchou can push to Live, after telling Ferlieloi): the release helper can't be used
   from the worktree (it pushes and checks tags on `origin` by name, and only purges from a branch named `master`). By
   hand: version in `package.json` + `package-lock.json`, `npm run release`, commit `release: vX` + annotated tag

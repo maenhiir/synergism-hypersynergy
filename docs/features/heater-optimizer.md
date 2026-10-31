@@ -4,6 +4,9 @@ The heater docs: `heater.md` (the panel: heating, results, branches, inputs, Bes
 
 The optimizer (`hs-heater-optimizer*.ts`) runs in a web worker: no DOM, no `HSLogger` (`heater.md`, "Heating").
 
+Income objectives use the same [sustained Ambrosia calculation](gds.md#sustained-ambrosia-income) as the page and
+header, with each candidate's loadout and routing. Starting tank contents do not affect a candidate's score.
+
 ## Platonic Tau
 The game raises every cube multiplier (Wow! Cubes to Octeracts) to Tau's power (1.01 once bought, kept in every Exalt: QoL upgrade; `applyTauPower`, Calculate.ts).
 - The heater's `cube`/`oct` stats stay untaued: the merge shortcuts multiply them by factors, and r^1.01 keeps every cube or oct ranking (H thresholds included).
@@ -49,6 +52,8 @@ assumed reached.
   current challenges replaced by C15 alone, so the player needn't be in C15. Rune levels from the save's rune EXP,
   blessings, spirits and talismans (`heaterCoinRunePurchasedLevel` copies `Runes.ts updateLevelsFromEXP`, its
   floating point correction included).
+- Rune cost coefficients are exported as decimal strings and parsed once by the evaluator, preserving Horseshoe's
+  `1e500` cost through JSON. The exporter and Heater use the same string format.
 - **Score**: a log10 ratio against the loadout with no purchased Ambrosia upgrades (`heaterCoinsC15LogRatio`,
   `hs-heater-coins.ts`); the factors the loadout doesn't change cancel out. Effect is that ratio as a multiplier
   (`formatHeaterCoinsC15Effect`). Post-AoAG applies to it too ("Post-AoAG (Obt/Off/Coins)").

@@ -1,5 +1,7 @@
 # Hypersynergism
 
+[Website](https://ferlieloi.github.io/synergism-hypersynergy/) · [Wiki](https://github.com/Ferlieloi/synergism-hypersynergy/wiki)
+
 A QoL mod for the [Synergism](https://synergism.cc/) game ([game's GitHub](https://github.com/Pseudo-Corp/SynergismOfficial)).
 
 ![image](guides/img/logo.gif)
@@ -24,6 +26,13 @@ Here are some of Hypersynergism’s standout features:
 - **Saves:** Export the save every X minutes, and back up the save, the mod's settings and the logs in one file, to load later or on another device.
 
 ## Using the mod
+
+### Feature guides
+
+See the [complete feature inventory](docs/FEATURES.md) for usage, settings, availability and source references,
+including smaller remembered preferences and header customization. The repository also includes a static
+[website](docs/index.html) with a browsable player wiki. Native GitHub Wiki pages are prepared from the same
+catalogue; [publishing instructions](docs/dev/publishing-guide.md) cover both destinations.
 
 ### 🎮 On Steam (Windows only)
 
