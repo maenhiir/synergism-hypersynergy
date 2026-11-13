@@ -26,6 +26,309 @@
   ],
   "entries": [
     {
+      "id": "dev-2.14.8-dev1",
+      "version": "2.14.8-dev1",
+      "channel": "dev",
+      "repository": "maenhiir/synergism-hypersynergy",
+      "commit": "b84f401e5438cfb4d7af71bd6529b66e87b04730",
+      "previous_commit": "97cfa4131c620047171f61a443f962a1d70ead8f",
+      "date": "2026-11-13",
+      "date_kind": "published",
+      "status": "published",
+      "release_url": "https://github.com/maenhiir/synergism-hypersynergy/releases/tag/v2.14.8-dev1",
+      "sources": [
+        {
+          "label": "Published release",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/releases/tag/v2.14.8-dev1"
+        },
+        {
+          "label": "Git tag",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/tree/v2.14.8-dev1"
+        },
+        {
+          "label": "Release/build commit",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/b84f401e5438cfb4d7af71bd6529b66e87b04730"
+        },
+        {
+          "label": "Source: 59fe2359",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/59fe2359e966b8f2d5428bc504878395572eda8b"
+        },
+        {
+          "label": "Source: 9e8cfc3f",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/9e8cfc3fb1f129d9dd331059e351f1fc7c04a1c2"
+        },
+        {
+          "label": "Source: 5f2721bc",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/5f2721bcb654326a1fcc2e1704cc4288044ccc24"
+        },
+        {
+          "label": "Source: b904c900",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/b904c9008eb2a30f32ccc554fc44db4a7261c22c"
+        },
+        {
+          "label": "Source: b1086d70",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/b1086d7047c9962c464e33ef08b58d5700f91ff8"
+        },
+        {
+          "label": "Source: dabcf4ed",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/dabcf4eddada5a41bc650ad821ec2e160fe78fe6"
+        },
+        {
+          "label": "Source: 4aaf1e0e",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/4aaf1e0ea6146d808a6d78fc2db52e92eb6e2e7d"
+        },
+        {
+          "label": "Source: f93b88c5",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/f93b88c54e18f6f13614d88c0a7c8e9961199a8e"
+        },
+        {
+          "label": "Source: 0132234b",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/0132234b30af4fca9973a73a85a86c20054cda78"
+        },
+        {
+          "label": "Source: bd3cba7c",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/bd3cba7cdde87430d70526ca8b55f01625cd756a"
+        },
+        {
+          "label": "Source: 89ae27ce",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/89ae27ce6a2472b6eed3942f817fb0522e3599fe"
+        },
+        {
+          "label": "Source: 53bd0e62",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/53bd0e62f9f51a1ce8cf76a45e3456c55bbcbcff"
+        },
+        {
+          "label": "Source: 174aa51f",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/174aa51fb5b6ef86e5648eb7949f70e834b82dce"
+        },
+        {
+          "label": "Source: 518e4bcd",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/518e4bcddec22bfa471f7ee9453cd799002b933b"
+        },
+        {
+          "label": "Source: 9a4da18f",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/9a4da18f200dc36ba300e5e4fc7034e8282b0614"
+        },
+        {
+          "label": "Source: 7572f318",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/7572f318717b2edcb4246fb07bdfd27ff27aa0f8"
+        },
+        {
+          "label": "Source: 7133aa5a",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/7133aa5a59325a4881744224036ab6d1401734e3"
+        },
+        {
+          "label": "Source: bf2c6292",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/bf2c6292953bdb9662a3518996d28da24243259d"
+        },
+        {
+          "label": "Source: 2c067c0d",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/2c067c0d7cb098493be648fa7143964d56fbfcaa"
+        },
+        {
+          "label": "Source: 8cb96fd3",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/8cb96fd370d7bd99759f20d0cb7d1b2fcbc68cbb"
+        },
+        {
+          "label": "Source: fed46e68",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/fed46e68762827e7b7c163f4381d759fd0193933"
+        },
+        {
+          "label": "Source: 6358872c",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/6358872c59e896d0f7e1c4b0ae9bb588f18a90cd"
+        },
+        {
+          "label": "Source: c9eb43fd",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/c9eb43fd0e659b4366365ba599d531ec83599db9"
+        },
+        {
+          "label": "Source: da43810f",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/da43810fafa81c5f3e66ea4103dffbbf39b4069c"
+        },
+        {
+          "label": "Source: 623bd760",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/623bd76061d6a1f3c2273db791ac365ecf5c42db"
+        }
+      ],
+      "notes": [
+        "Steam: no re-patch needed."
+      ],
+      "changes": [
+        {
+          "type": "fixed",
+          "text": "The heater and the header’s ambrosia rates work again after the game’s November 12 update (rune rework); Steam, still on the previous game version, keeps working as before.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/59fe2359e966b8f2d5428bc504878395572eda8b"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "Search fields on Singularity Golden Quarks and Octeracts, like the perks’ one: upgrades that don’t match are dimmed, and matching maxed upgrades hidden by the game are counted apart. The setting becomes Search fields (Perks, GQ, Oct).",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/9e8cfc3fb1f129d9dd331059e351f1fc7c04a1c2"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "AutoSing: the corruption level 0 before the AoAG phase is no longer hard-coded but a visible strategy step that can be changed or removed; saved and imported strategies get it once, and runs behave as before.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/5f2721bcb654326a1fcc2e1704cc4288044ccc24"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "AutoSing: Full log during Auto-Sing setting (off by default: a run logs only warnings and errors), in a new Diagnostics section with Record step timings.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/b904c9008eb2a30f32ccc554fc44db4a7261c22c",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/b1086d7047c9962c464e33ef08b58d5700f91ff8"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Strategy window: the AoAG row sits before the final phase with a help mark, a link opens the guide’s new strategy-editing section, a double-click moves Add Here below a step, and the actions window’s help is wider.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/dabcf4eddada5a41bc650ad821ec2e160fe78fe6",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/4aaf1e0ea6146d808a6d78fc2db52e92eb6e2e7d",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/f93b88c54e18f6f13614d88c0a7c8e9961199a8e",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/0132234b30af4fca9973a73a85a86c20054cda78"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Log tab: Timestamps and Debug logs checkboxes show or hide those lines at any time (always recorded; the two settings are gone), Copy Log copies the whole log, the tab is faster during long runs and the first startup lines are kept.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/b904c9008eb2a30f32ccc554fc44db4a7261c22c",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/bd3cba7cdde87430d70526ca8b55f01625cd756a"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Automation quickbar: in languages other than English, a group click no longer turns off toggles that were on.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/89ae27ce6a2472b6eed3942f817fb0522e3599fe"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Ctrl auto-click with Skip risky buttons no longer toggles auto sacrifice through its label.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/53bd0e62f9f51a1ce8cf76a45e3456c55bbcbcff"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Notification opacity works again, 0 included, and turning it off no longer shows an error.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/174aa51fb5b6ef86e5648eb7949f70e834b82dce"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Tools tab Fix Exalt Bug now clears the stuck exalt and tells what it did.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/518e4bcddec22bfa471f7ee9453cd799002b933b"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Steam: header modules no longer end up in the tray at startup, and the loaded ambrosia slot shows its silver border again.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/9a4da18f200dc36ba300e5e4fc7034e8282b0614",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/7572f318717b2edcb4246fb07bdfd27ff27aa0f8"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Steam: Auto-Sing can no longer start while the game is still loading the save, and Export the save every X minutes no longer warns on the loading screen or exports during an offline catch-up.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/7133aa5a59325a4881744224036ab6d1401734e3"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "No more Maximum call stack size exceeded error in the header’s ambrosia rates.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/bf2c6292953bdb9662a3518996d28da24243259d"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Hiding maxed GQ and Octeract upgrades also applies when coming back to Singularity on those subtabs.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/2c067c0d7cb098493be648fa7143964d56fbfcaa"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Bookmarklet: the ascension loadout switch and AutoSing’s exalt detection work again with the game’s new colours.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/8cb96fd370d7bd99759f20d0cb7d1b2fcbc68cbb"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "Backup import: a Skip offline progress option loads the save with no offline progress since it was made.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/fed46e68762827e7b7c163f4381d759fd0193933"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Version check shows the Live release on its own line; the Tools tab keeps its default width; a setting that needs GDS first shows a notification.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/6358872c59e896d0f7e1c4b0ae9bb588f18a90cd",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/c9eb43fd0e659b4366365ba599d531ec83599db9",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/da43810fafa81c5f3e66ea4103dffbbf39b4069c",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/623bd76061d6a1f3c2273db791ac365ecf5c42db"
+          ]
+        }
+      ],
+      "contributors": [
+        {
+          "id": "maenhiir",
+          "roles": [
+            "changes",
+            "release"
+          ],
+          "commits": [
+            "183c82e8eda64668724822a3c7d795338a59a4d1",
+            "b84f401e5438cfb4d7af71bd6529b66e87b04730"
+          ]
+        },
+        {
+          "id": "Ferlieloi",
+          "roles": [
+            "changes",
+            "release"
+          ],
+          "commits": [
+            "0f22daeef33349fbcb8f2ba4237f77987291d5c2",
+            "61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e"
+          ]
+        }
+      ],
+      "contributor_range": {
+        "base": "97cfa4131c620047171f61a443f962a1d70ead8f",
+        "head": "b84f401e5438cfb4d7af71bd6529b66e87b04730",
+        "scope": "repository"
+      },
+      "merges": [
+        {
+          "direction": "live-to-dev",
+          "commit": "3775407e1beccd7d196df5389ea7263607df310c",
+          "commits": [
+            "3775407e1beccd7d196df5389ea7263607df310c"
+          ],
+          "summary": "Includes Live changes through v2.14.8.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/3775407e1beccd7d196df5389ea7263607df310c"
+          ],
+          "from_entry_id": "live-2.14.8",
+          "through_version": "2.14.8"
+        }
+      ]
+    },
+    {
       "id": "live-2.14.8",
       "version": "2.14.8",
       "channel": "live",
@@ -158,6 +461,167 @@
         "scope": "repository"
       },
       "merges": []
+    },
+    {
+      "id": "dev-2.14.7d-dev4",
+      "version": "2.14.7d-dev4",
+      "channel": "dev",
+      "repository": "maenhiir/synergism-hypersynergy",
+      "commit": "97cfa4131c620047171f61a443f962a1d70ead8f",
+      "previous_commit": "f278aec92a1df1beff95be74bbc7e127a811d509",
+      "date": "2026-11-11",
+      "date_kind": "published",
+      "status": "published",
+      "release_url": "https://github.com/maenhiir/synergism-hypersynergy/releases/tag/v2.14.7d-dev4",
+      "sources": [
+        {
+          "label": "Published release",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/releases/tag/v2.14.7d-dev4"
+        },
+        {
+          "label": "Git tag",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/tree/v2.14.7d-dev4"
+        },
+        {
+          "label": "Release/build commit",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/97cfa4131c620047171f61a443f962a1d70ead8f"
+        },
+        {
+          "label": "Source: caad33d5",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/caad33d55dc32180dd8bdd52b446e0cb0f2cf23c"
+        },
+        {
+          "label": "Source: 7024beda",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/7024beda4092d3e17a5a7d7f4f2b4a04bc7a99c9"
+        },
+        {
+          "label": "Source: c292b9d4",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/c292b9d41ea51385c0af6033d215612fff247654"
+        },
+        {
+          "label": "Source: c353036a",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/c353036a8bbd9a3f1fb1a967fdbb8191e13fb284"
+        },
+        {
+          "label": "Source: 43421699",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/43421699ff0584fee094e879ace0e6dd2ac15877"
+        },
+        {
+          "label": "Source: b68a5547",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/b68a55479bbeed512bcf0c21eec5fb820a513629"
+        },
+        {
+          "label": "Source: 6b72cd95",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/6b72cd95bc73d2add5f9130aa2646b237e3bc8cc"
+        },
+        {
+          "label": "Source: 25e0725a",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/25e0725a58e3cdebd84c73214a8c6891f37dd7bd"
+        },
+        {
+          "label": "Source: 49d116c2",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/49d116c2213b573f0ebfa96b3870f57ec959d0c5"
+        },
+        {
+          "label": "Source: ac193ea9",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/ac193ea96d5ebb22f36278ffbf017f5d6621c082"
+        },
+        {
+          "label": "Source: 6c280a7f",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/6c280a7fe3857abb2631a7b57456c7b2ec6396e6"
+        },
+        {
+          "label": "Source: 1203f85b",
+          "url": "https://github.com/maenhiir/synergism-hypersynergy/commit/1203f85b6ff2459de86d6445c08613edf0d5461e"
+        }
+      ],
+      "notes": [
+        "Steam: re-patch once."
+      ],
+      "changes": [
+        {
+          "type": "fixed",
+          "text": "Follows the game’s November 10 save format: talisman levels and fragments, the mod’s header modules and the save seed cap work again, without the patch missing warning.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/caad33d55dc32180dd8bdd52b446e0cb0f2cf23c"
+          ]
+        },
+        {
+          "type": "fixed",
+          "text": "Corruption cube rates follow the game’s November 9 update.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/7024beda4092d3e17a5a7d7f4f2b4a04bc7a99c9"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "AutoSing: IF steps get an optional Max jumps, after which the IF goes on to the next step; the default strategies use it on their last C15 loop.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/c292b9d41ea51385c0af6033d215612fff247654"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "AutoSing: game settings are restored after a reload or a closed game during a run, as a Stop would.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/c353036a8bbd9a3f1fb1a967fdbb8191e13fb284"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Heater: Max SR rows are much faster when the Ambrosia budget covers the best tree.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/43421699ff0584fee094e879ace0e6dd2ac15877"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Heater: the row limit notification names the search that hit it; Import all loadouts shows one notification instead of two.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/b68a55479bbeed512bcf0c21eec5fb820a513629",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/6b72cd95bc73d2add5f9130aa2646b237e3bc8cc"
+          ]
+        },
+        {
+          "type": "added",
+          "text": "Grouped Stats for Nerds list setting (off by default): a compact list sorted into groups instead of the grid of category buttons.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/25e0725a58e3cdebd84c73214a8c6891f37dd7bd",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/49d116c2213b573f0ebfa96b3870f57ec959d0c5"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Perk search: a real Clear button next to the field, and the result count inside the field.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/ac193ea96d5ebb22f36278ffbf017f5d6621c082"
+          ]
+        },
+        {
+          "type": "changed",
+          "text": "Ambrosia loaded-slot borders glow, with a lighter silver; log lines align their contexts and debug lines are no longer italic.",
+          "evidence": [
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/6c280a7fe3857abb2631a7b57456c7b2ec6396e6",
+            "https://github.com/maenhiir/synergism-hypersynergy/commit/1203f85b6ff2459de86d6445c08613edf0d5461e"
+          ]
+        }
+      ],
+      "contributors": [
+        {
+          "id": "maenhiir",
+          "roles": [
+            "changes"
+          ],
+          "commits": [
+            "8ca65a07316a80e83d39cad4648596da6acbbf44"
+          ]
+        }
+      ],
+      "contributor_range": {
+        "base": "f278aec92a1df1beff95be74bbc7e127a811d509",
+        "head": "97cfa4131c620047171f61a443f962a1d70ead8f",
+        "scope": "repository"
+      }
     },
     {
       "id": "dev-2.14.7d-dev3",
