@@ -729,7 +729,7 @@
             "Mod modules are restored through the mod's local placement store after the game reloads the layout."
           ],
           "limits": [
-            "Requires the save-import and header parsing patches. This checkbox is for the game's normal imports; Backup & Restore performs a broader local-state restore."
+            "Requires the save-import and header parsing patches. This checkbox is for the game's normal imports; Backup & Restore has the same option (Keep my current header layout), shared with this one."
           ],
           "settings": [
             "keepHeaderLayoutOnImport"
@@ -1394,7 +1394,8 @@
             "The current-state backup and the actual import are separate clicks, allowing the backup download to finish first.",
             "Restoring mod data is exact: missing mod keys are removed. Only permitted game-preference keys are restored; logs and diagnostics are never imported.",
             "An ordinary current-format game export can also be loaded.",
-            "\"Skip offline progress\" loads the save with no offline progress since it was made; code timers and the daily reset work as usual."
+            "\"Skip offline progress\" loads the save with no offline progress since it was made; code timers and the daily reset work as usual.",
+            "\"Keep my current header layout\" keeps your header as it is: its layout from the save and where the mod's modules sit from the mod data. Shared with the checkbox under the game's Load from file, and works without the patched game too."
           ],
           "limits": [
             "Import replaces the selected local state and reloads the page. Legacy compressed saves rejected by current validation are not restored; folder permissions and pending paid time skips are not copied."

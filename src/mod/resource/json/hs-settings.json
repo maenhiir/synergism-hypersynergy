@@ -42,7 +42,7 @@
   },
   "keepHeaderLayoutOnImport": {
     "settingName": "keepHeaderLayoutOnImport",
-    "settingDescription": "Keep my header layout when a save is loaded (checkbox under Load from file)",
+    "settingDescription": "Keep my header layout when a save is loaded (checkbox under Load from file, and in Tools > Import from file)",
     "settingType": "boolean",
     "enabled": false,
     "hidden": true
