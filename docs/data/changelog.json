@@ -22,7 +22,8 @@
     "Dates use UTC. Published release dates take precedence over tag dates; source-only record dates are explicitly marked as inferred.",
     "The public changelog shows published releases and tagged builds only. Unconfirmed source records are retained in the research data but are not displayed.",
     "Contributor credits combine human Git authors and recorded human co-authors across each version’s change range. Aliases are merged into verified public identities; automated tools are excluded. Release-only credits are labeled. Loader credits are limited to loader files; the first record on a fork uses the nearest preserved earlier baseline where available. Released builds compare against the previous released build, so unconfirmed source markers do not hide earlier contributors.",
-    "Released-build notes include verified player-facing changes from earlier unconfirmed source records when those changes first reach a preserved release in the same channel. Repeated and superseded intermediate changes are consolidated; included_version_records preserves the research trail without displaying unreleased builds."
+    "Released-build notes include verified player-facing changes from earlier unconfirmed source records when those changes first reach a preserved release in the same channel. Repeated and superseded intermediate changes are consolidated; included_version_records preserves the research trail without displaying unreleased builds.",
+    "Dev credits leave out the commits merged from Live unless the entry lists their changes: they are credited on the Live release."
   ],
   "entries": [
     {
@@ -291,19 +292,8 @@
             "release"
           ],
           "commits": [
-            "183c82e8eda64668724822a3c7d795338a59a4d1",
+            "50d8164a0fd73911a771756ba7815330d718c694",
             "b84f401e5438cfb4d7af71bd6529b66e87b04730"
-          ]
-        },
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "0f22daeef33349fbcb8f2ba4237f77987291d5c2",
-            "61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e"
           ]
         }
       ],
@@ -333,7 +323,7 @@
       "version": "2.14.8",
       "channel": "live",
       "repository": "Ferlieloi/synergism-hypersynergy",
-      "commit": "c3d707be18f95a0261cea04984ffc75faeeac4d0",
+      "commit": "61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e",
       "previous_commit": "01e8b1d2f37df8f3b6ae1cfa9c6c2434a0a00000",
       "date": "2026-11-11",
       "date_kind": "published",
@@ -350,7 +340,7 @@
         },
         {
           "label": "Release build",
-          "url": "https://github.com/Ferlieloi/synergism-hypersynergy/commit/c3d707be18f95a0261cea04984ffc75faeeac4d0"
+          "url": "https://github.com/Ferlieloi/synergism-hypersynergy/commit/61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e"
         }
       ],
       "notes": [],
@@ -386,22 +376,46 @@
       ],
       "contributors": [
         {
+          "id": "maenhiir",
+          "roles": [
+            "changes"
+          ],
+          "commits": [
+            "b68a55479bbeed512bcf0c21eec5fb820a513629"
+          ]
+        },
+        {
           "id": "Ferlieloi",
           "roles": [
             "changes",
             "release"
           ],
           "commits": [
-            "c3d707be18f95a0261cea04984ffc75faeeac4d0"
+            "ce4b74860b665707c15c94fa13a0cd75703daae3",
+            "61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e"
           ]
         }
       ],
       "contributor_range": {
         "base": "01e8b1d2f37df8f3b6ae1cfa9c6c2434a0a00000",
-        "head": "c3d707be18f95a0261cea04984ffc75faeeac4d0",
+        "head": "61f1a2fc5ea2bfa2839d4525a094315bc8d63e8e",
         "scope": "repository"
       },
-      "merges": []
+      "merges": [
+        {
+          "direction": "dev-to-live",
+          "commit": "4c3be1aa9b4003c4a74d4ca7937ca216ffe68034",
+          "commits": [
+            "4c3be1aa9b4003c4a74d4ca7937ca216ffe68034"
+          ],
+          "summary": "Includes Dev changes through v2.14.7d-dev4.",
+          "evidence": [
+            "https://github.com/Ferlieloi/synergism-hypersynergy/commit/4c3be1aa9b4003c4a74d4ca7937ca216ffe68034"
+          ],
+          "from_entry_id": "dev-2.14.7d-dev4",
+          "through_version": "2.14.7d-dev4"
+        }
+      ]
     },
     {
       "id": "live-2.14.7e",
@@ -444,14 +458,23 @@
       ],
       "contributors": [
         {
-          "id": "Ferlieloi",
+          "id": "maenhiir",
           "roles": [
             "changes",
             "release"
           ],
           "commits": [
-            "eb9a4d98d486e7a3d239358fd71096423da94a9c",
-            "01e8b1d2f37df8f3b6ae1cfa9c6c2434a0a00000"
+            "c5d5d5550443b64696be54cfe3b748cd85835347",
+            "d92a62319ea93487e8dfe50785560bf272327aea"
+          ]
+        },
+        {
+          "id": "Ferlieloi",
+          "roles": [
+            "changes"
+          ],
+          "commits": [
+            "0276968db54319e362f88b098ba0aff43a5bbfbf"
           ]
         }
       ],
@@ -460,7 +483,22 @@
         "head": "01e8b1d2f37df8f3b6ae1cfa9c6c2434a0a00000",
         "scope": "repository"
       },
-      "merges": []
+      "merges": [
+        {
+          "direction": "dev-to-live",
+          "commit": "80b5ac08f58c9e01da0ef941678e1e82b2d15138",
+          "commits": [
+            "80b5ac08f58c9e01da0ef941678e1e82b2d15138"
+          ],
+          "summary": "Includes Dev changes through v2.14.7d-dev3 and the later Auto-Sing and Heater updates from PR #44.",
+          "evidence": [
+            "https://github.com/Ferlieloi/synergism-hypersynergy/commit/80b5ac08f58c9e01da0ef941678e1e82b2d15138",
+            "https://github.com/Ferlieloi/synergism-hypersynergy/pull/44"
+          ],
+          "from_entry_id": "dev-2.14.7d-dev3",
+          "through_version": "2.14.7d-dev3"
+        }
+      ]
     },
     {
       "id": "dev-2.14.7d-dev4",
@@ -787,17 +825,6 @@
           "commits": [
             "8d532c22b88fe05748a3e2370b66e46f0abb64e1"
           ]
-        },
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "ee452af0329d9a033c86b0933e229fadae16a9fd",
-            "006d1a98df27e8a9f9dbfea7974c75d825c84ce0"
-          ]
         }
       ],
       "contributor_range": {
@@ -877,7 +904,7 @@
             "release"
           ],
           "commits": [
-            "b3aea6914abd8c1c1d4d6b898654c1a7ff694631",
+            "ee452af0329d9a033c86b0933e229fadae16a9fd",
             "006d1a98df27e8a9f9dbfea7974c75d825c84ce0"
           ]
         }
@@ -1511,17 +1538,6 @@
           ],
           "commits": [
             "f7c461c7fcc44196a4b5c55cc434a3b3e83bdf5d"
-          ]
-        },
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "777fd06d8a4e24a15d56044d966b5518d377229e",
-            "e43cda24c83a11d2488ff920206b1c0a5622592e"
           ]
         }
       ],
@@ -3466,12 +3482,10 @@
         {
           "id": "Ferlieloi",
           "roles": [
-            "changes",
-            "release"
+            "changes"
           ],
           "commits": [
-            "d64b4510259ed46dc8b713074852cbe1566ed40b",
-            "7ae5e2bce4b8946ac90b0917aac6f0dc08310098"
+            "092a6482e8ff7095a1c44fd4f9657ff9dea45890"
           ]
         }
       ],
@@ -5283,7 +5297,7 @@
           ],
           "commits": [
             "9d54f398768f88dd79f94c4e1bd00b38d0c5e7ef",
-            "4d88316676615b744824115744dcf5cd46c6a266"
+            "1b76067eb9ce4b69f56abfe70edf31fe8d324ceb"
           ]
         }
       ],
@@ -9569,12 +9583,10 @@
         {
           "id": "Ferlieloi",
           "roles": [
-            "changes",
-            "release"
+            "changes"
           ],
           "commits": [
-            "a71fc82cd07a8d4f94e50d4583fa914027a8d153",
-            "f9cbad50c97135758fbc46fafef4bdfe072e100f"
+            "a516a807c87621c866e2fe358fa5918e9da8650a"
           ]
         },
         {
@@ -10101,17 +10113,6 @@
         }
       ],
       "contributors": [
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "7c2d384081b482e4ca595c3428bcea771dd10558",
-            "8f421f73620c4c57c9e683c07937f3a4e693fbbf"
-          ]
-        },
         {
           "id": "maenhiir",
           "roles": [
@@ -11777,7 +11778,7 @@
             "release"
           ],
           "commits": [
-            "2aa6a97bc61701f18c6963775467daa7fc951a53",
+            "d71c51cd5081c3b4085c904fb9806d88317469cd",
             "8d331de11d84e5d849d0fd1031dc21cbd65fcda0"
           ]
         },
@@ -11787,7 +11788,7 @@
             "changes"
           ],
           "commits": [
-            "1c94ef310efc030ccb60940e1afa2bb64d0ff227"
+            "d649bedc3a39a7d41d1991c0067729003a264174"
           ]
         }
       ],
@@ -12986,26 +12987,6 @@
             "c88b113f4a27ce777b372b3eabe90e066e19dcaa",
             "64e32d2824f34e8644fd1e0ea62bb6dc0f185c23"
           ]
-        },
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "5116b754a6862ab4bb8c1583d1064e60ec27c73e",
-            "01498ac5c41f47e36da3ee3ef760676d632e66d6"
-          ]
-        },
-        {
-          "id": "loader3229",
-          "roles": [
-            "changes"
-          ],
-          "commits": [
-            "953f73374b8eeba1bf89e0c292d1cff6db8da561"
-          ]
         }
       ],
       "contributor_range": {
@@ -13082,15 +13063,6 @@
           "commits": [
             "c4ff78dbb88622d9b4e60b9c7fd4dc7fba80d8fe",
             "c6a94e9f0fd978afd3738219a5005676e022c471"
-          ]
-        },
-        {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes"
-          ],
-          "commits": [
-            "65d63a43a6def68a5a78103cb0331a0b4e7de4b1"
           ]
         },
         {
@@ -13418,23 +13390,21 @@
       ],
       "contributors": [
         {
-          "id": "Ferlieloi",
-          "roles": [
-            "changes",
-            "release"
-          ],
-          "commits": [
-            "65d63a43a6def68a5a78103cb0331a0b4e7de4b1",
-            "111747eee655e6edaf85d2e3e6ee72e1badd59e8"
-          ]
-        },
-        {
           "id": "maenhiir",
           "roles": [
             "changes"
           ],
           "commits": [
             "a6692669c6d1d40267b8083184c625c7c3e9d2b7"
+          ]
+        },
+        {
+          "id": "Ferlieloi",
+          "roles": [
+            "release"
+          ],
+          "commits": [
+            "111747eee655e6edaf85d2e3e6ee72e1badd59e8"
           ]
         }
       ],
