@@ -717,7 +717,7 @@ def build() -> None:
     changelog_outputs()
     page("docs/github.html", "Github", "github", f'''<h1>Github</h1>
 <p>Source, downloads, issues and the original project.</p>
-<a href="{REPO}" aria-label="Open the maintained repository"><img src="res/github.png" id="github-logo" width="180" height="180" alt="GitHub"></a>
+<a href="{REPO}" aria-label="Open the maintained repository"><img src="res/github.png" id="github-logo" width="180" height="67" alt="GitHub"></a>
 <ul><li><a href="{REPO}">Maintained Live repository</a></li><li><a href="{REPO}/releases">Releases &amp; Windows loader</a></li><li><a href="{REPO}/issues">Bug reports &amp; requests</a></li><li><a href="https://github.com/maenhiir/synergism-hypersynergy">Dev channel</a></li><li><a href="https://github.com/ahvonenj/synergism-hypersynergy">Original repository</a></li><li><a href="https://github.com/Pseudo-Corp/SynergismOfficial">Synergism game source</a></li></ul>''')
     page("docs/about.html", "About", "about", '''<h1>About Hypersynergism</h1>
 <p>A community mod for <a href="https://synergism.cc/">Synergism</a>. Originally created by <a href="https://github.com/ahvonenj">ahvonenj</a>, now maintained by <a href="https://github.com/Ferlieloi">Ferlieloi</a>, <a href="https://github.com/maenhiir">maenhiir</a> and contributors.</p>
