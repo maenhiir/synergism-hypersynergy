@@ -10,6 +10,7 @@ import { HSLoadoutIconStore } from "../hs-loadout-icons/hs-loadout-icon-store";
 import { getEffectiveHeaterIconSrc } from "../hs-heater/hs-heater-icon-store";
 import { HSLogger } from "../../hs-core/hs-logger";
 import { HSModule, type HSModuleOptions } from "../../hs-core/module/hs-module";
+import { setAnimatedBorder } from "../../hs-core/hs-animated-border";
 import { HSModuleRegistry } from "../../hs-core/module/hs-module-registry";
 import { HSSettingsUI } from "../../hs-core/settings/hs-settings-ui";
 import { HSUtils } from "../../hs-utils/hs-utils";
@@ -61,8 +62,6 @@ export class HSAmbrosia extends HSModule
 
     // The slots of the game's Ambrosia loadouts header module, and of its loadout page module (8 slots a page)
     static readonly #HEADER_SLOTS_IDS = ['ambrosiaLoadoutsHeaderSlots', 'ambrosiaLoadoutPageHeaderSlots'];
-    static readonly #CONFIRMED_BORDER = 'hs-rainbow-border';
-    static readonly #GUESSED_BORDER = 'hs-silver-border';
 
     gameDataSubscriptionId?: string;
     #ambrosiaViewSubscribed = false;
@@ -384,24 +383,16 @@ export class HSAmbrosia extends HSModule
      * loadout page): rainbow once the game marks it, silver while it's only our guess from the save.
      */
     #renderActiveLoadoutBorders(): void {
-        const border = this.#activeLoadoutConfirmed ? HSAmbrosia.#CONFIRMED_BORDER : HSAmbrosia.#GUESSED_BORDER;
+        const border = this.#activeLoadoutConfirmed ? 'rainbow' : 'silver';
         for (const slot of this.#loadoutsSlots) {
-            HSAmbrosia.#setBorder(slot, slot.id === this.activeLoadout ? border : undefined);
+            setAnimatedBorder(slot, slot.id === this.activeLoadout ? border : undefined);
         }
 
         for (const containerId of HSAmbrosia.#HEADER_SLOTS_IDS) {
             const headerSlots = document.getElementById(containerId)?.querySelectorAll<HTMLElement>(':scope > .headerLoadoutSlot');
             for (const slot of headerSlots ?? []) {
-                HSAmbrosia.#setBorder(slot, `blueberryLoadout${slot.dataset.slot}` === this.activeLoadout ? border : undefined);
+                setAnimatedBorder(slot, `blueberryLoadout${slot.dataset.slot}` === this.activeLoadout ? border : undefined);
             }
-        }
-    }
-
-    static #setBorder(slot: Element, border: string | undefined): void {
-        for (const className of [HSAmbrosia.#CONFIRMED_BORDER, HSAmbrosia.#GUESSED_BORDER]) {
-            const wanted = className === border;
-            // Only on a change: the tab's slot classes are observed (#observeGameActiveLoadout, the heater's slot row)
-            if (slot.classList.contains(className) !== wanted) slot.classList.toggle(className, wanted);
         }
     }
 

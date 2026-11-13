@@ -1,3 +1,4 @@
+import { ANIMATED_BORDER_LAYER_CLASS } from "../../hs-core/hs-animated-border";
 import { HSLogger } from "../../hs-core/hs-logger";
 import { HSUI } from "../../hs-core/hs-ui";
 import { HSModule, type HSModuleOptions } from "../../hs-core/module/hs-module";
@@ -136,7 +137,8 @@ export class HSHeaderLoadoutIcons extends HSModule {
 
         if (url) {
             // Already painted with this icon: nothing to do (also ends the observer's echo of our own paint)
-            if (painted && first.getAttribute('src') === url && button.childNodes.length === 2) return;
+            const hasBorderLayer = button.lastElementChild?.classList.contains(ANIMATED_BORDER_LAYER_CLASS);
+            if (painted && first.getAttribute('src') === url && button.childNodes.length === (hasBorderLayer ? 3 : 2)) return;
 
             const image = document.createElement('img');
             image.className = ICON_CLASS;
