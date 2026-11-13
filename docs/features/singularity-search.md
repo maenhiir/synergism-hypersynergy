@@ -8,15 +8,18 @@ feature on three grids, whose empty field changes little; not one setting per su
 read under the new key (`RENAMED_SETTINGS`, `hs-settings-state.ts`).
 
 Files: `hs-singularity-search.ts` (the module), `-perks.ts`, `-grid.ts` (Golden Quarks and Octeracts, one class with
-their ids), `-field.ts` (the field and the tooltip read they share), `-match.ts` (matching).
+their ids), `-field.ts` (the field, its clickable words and the tooltip read they share), `-match.ts` (matching).
 
 ## The field (every subtab)
 
 - **A field, always visible**: not a button that opens one, a click for nothing.
-- **Clearing the field (Clear button, by hand) or Escape** ends the search. The Clear button is the game's button at the
-  field's height, to the right of the field, hidden while the field is empty: not a cross inside the field, too small a
-  target. The number of results is in grey inside the field, at its right end, like the browser's find bar; typed text
-  stops before it. The text stays when leaving the subtab, and the search is read again on return.
+- **Clearing the field (Clear button, by hand) or Escape** ends the search. The text stays when leaving the subtab, and
+  the search is read again on return.
+- **The number of results and the Clear button are inside the field, at its right end**, like the browser's find bar;
+  typed text stops before them. The field keeps its size and stays centred, nothing moves as they appear. The Clear
+  button is the game's button, nearly the field's height, shown while the field has text: not a cross, too small a
+  target; not beside the field, where its kept room put the field off-centre; not a field that shrinks to make room for
+  it, which moves its end and the count while typing.
 
 ## Perks / Penalties
 
@@ -26,8 +29,7 @@ their ids), `-field.ts` (the field and the tooltip read they share), `-match.ts`
 - **Compact cards, one column**: not two columns, whose room depends on the window; not a smaller font alone, which gains
   least. Smaller icon and text, level in small grey on the title row, next level dropped: the game's own tooltip, on the
   lit perk in the tree, still has it.
-- The Clear button is out of the flow there (the field stays centred over the penalties). Results are a snapshot: their
-  values update at the next key or return, not live.
+- Results are a snapshot: their values update at the next key or return, not live.
 
 ## Golden Quarks and Octeracts
 
@@ -35,20 +37,26 @@ their ids), `-field.ts` (the field and the tooltip read they share), `-match.ts`
   them (they would cover the grid searched). The grid is the result list; hovering a lit upgrade opens the game's
   tooltip. On Octeracts the map's lines are dimmed too (spine, nodes, tracks).
 - **The field's row is in the grid's box, right under the upgrade AP line**: the same place on both, at every window
-  width. Turning the setting on moves the grid down once by the row's height; nothing moves while searching. The Clear
-  button is in the flow beside the field, its room kept while hidden: the octeract box is narrow with the maxed upgrades
-  hidden.
+  width. Turning the setting on moves the grid down once by the row's height; nothing moves while searching.
 - **Maxed upgrades the game's "Maxed Upgrades" button hides are counted apart**: "2 results (+10 hidden)". They stay
   hidden. The count follows a click on that button.
 - The game rebuilds the octeract box the first time its subtab opens: the row is put back at each opening.
 - The game never hides a locked upgrade on these grids (an upgrade above the highest singularity shows its minimum in
   red): no spoiler check.
 
-## Clickable words (Perks only)
+## Clickable words
 
-- **One row under the field**: `quark`, `cube`, `octeract`, `ant`, `luck`, `salvage`, `token`, `auto`, `challenge`,
-  `purple`, in the room above the penalties text. They fill the 445 px column (443 px, English): an 11th word needs a
-  second row, which needs the penalties moved. A click fills the field and searches.
+Under each field; a click fills the field and searches.
+
+- **Perks: one row**, `quark`, `cube`, `octeract`, `ant`, `luck`, `salvage`, `token`, `auto`, `challenge`, `purple`, in the
+  room above the penalties text. They fill the 445 px column (443 px, English): an 11th word needs a second row, which
+  needs the penalties moved.
+- **Golden Quarks**: `quark`, `cube`, `ambrosia`, `octeract`, `ascension`, `corrupt`, `offering`, `platonic` (64 of
+  the 81 upgrades in English). **Octeracts**: `quark`, `ambrosia`, `free`, `octeract`, `ascension`, `cap`, `speed`,
+  `token` (40 of 47). The words that find the most upgrades, on one row of the box with the maxed upgrades shown; not
+  `luck`, which only finds the Ambrosia Luck upgrades `ambrosia` finds. The row wraps in a narrower box (octeracts with
+  the maxed upgrades hidden).
+- **The field's suggestions are words that find something there**: "cube" finds no octeract upgrade.
 - **A word that finds nothing isn't shown**, checked each time the subtab opens: nothing unlocked yet on that subject, or
   another wording in the game's language. The words are English in every language: not a list per language, not English
   only. Where they keep matching by chance, a French "ant" finds "Antiquités".

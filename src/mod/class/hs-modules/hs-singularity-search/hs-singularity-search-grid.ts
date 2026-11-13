@@ -1,6 +1,6 @@
 import { HSElementHooker } from "../../hs-core/hs-elementhooker";
 import { HSLogger } from "../../hs-core/hs-logger";
-import { HSSearchField, readHoverTooltip } from "./hs-singularity-search-field";
+import { HSSearchField, HSSearchWords, readHoverTooltip } from "./hs-singularity-search-field";
 import { matchesSearch, normalizeSearchText, searchTerms } from "./hs-singularity-search-match";
 
 const ACTIVE_CLASS = 'hs-sing-search-active';
@@ -17,6 +17,8 @@ export interface HSUpgradeGridOptions {
     upgradeSelector: string;
     maxedToggleId: string;
     placeholder: string;
+    /** The clickable words under the field */
+    words: readonly string[];
 }
 
 interface HSReadUpgrade {
@@ -35,6 +37,7 @@ export class HSUpgradeGridSearch {
     #container?: HTMLElement;
     #row?: HTMLElement;
     #field?: HSSearchField;
+    #words?: HSSearchWords;
     #upgrades: HSReadUpgrade[] = [];
 
     constructor(options: HSUpgradeGridOptions, context: string) {
@@ -93,6 +96,7 @@ export class HSUpgradeGridSearch {
         }
 
         this.#upgrades = this.#readUpgrades();
+        this.#words?.refresh(this.#upgrades.map(({ text }) => text));
         this.#search();
     }
 
@@ -100,7 +104,8 @@ export class HSUpgradeGridSearch {
         const row = document.createElement('div');
         row.className = 'hs-sing-search-row';
         this.#field = new HSSearchField(this.#options.placeholder, () => this.#search());
-        row.append(this.#field.element);
+        this.#words = new HSSearchWords(this.#options.words, this.#field);
+        row.append(this.#field.element, this.#words.element);
         return row;
     }
 

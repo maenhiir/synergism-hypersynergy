@@ -1,6 +1,6 @@
 import { HSElementHooker } from "../../hs-core/hs-elementhooker";
 import { HSLogger } from "../../hs-core/hs-logger";
-import { HSSearchField, readHoverTooltip } from "./hs-singularity-search-field";
+import { HSSearchField, HSSearchWords, readHoverTooltip } from "./hs-singularity-search-field";
 import { matchesSearch, normalizeSearchText, searchTerms } from "./hs-singularity-search-match";
 
 const PERK_SELECTOR = '#singularityPerksGrid .singularityPerkNode';
@@ -26,7 +26,7 @@ export class HSPerksSearch {
     #root?: HTMLElement;
     #field?: HSSearchField;
     #results?: HTMLElement;
-    #subjectButtons = new Map<string, HTMLElement>();
+    #words?: HSSearchWords;
 
     constructor(context: string) {
         this.#context = context;
@@ -70,10 +70,7 @@ export class HSPerksSearch {
         if (!this.#root?.isConnected) return;
 
         const perks = HSPerksSearch.#readShownPerks();
-        this.#subjectButtons.forEach((button, word) => {
-            const terms = searchTerms(word);
-            button.style.display = perks.some(({ text }) => matchesSearch(text, terms)) ? '' : 'none';
-        });
+        this.#words?.refresh(perks.map(({ text }) => text));
         this.#showResults(perks);
     }
 
@@ -83,23 +80,15 @@ export class HSPerksSearch {
 
         const field = new HSSearchField('[HS] Find a perk (cube, quark...)', () => this.#search());
 
-        const subjects = document.createElement('div');
-        subjects.id = 'hs-sing-search-perks-subjects';
-        for (const word of SUBJECTS) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = word;
-            button.addEventListener('click', () => field.fill(word));
-            subjects.append(button);
-            this.#subjectButtons.set(word, button);
-        }
+        const words = new HSSearchWords(SUBJECTS, field);
 
         const results = document.createElement('div');
         results.id = 'hs-sing-search-perks-results';
 
-        root.append(field.element, subjects, results);
+        root.append(field.element, words.element, results);
         this.#field = field;
         this.#results = results;
+        this.#words = words;
         return root;
     }
 

@@ -36,6 +36,7 @@ export class HSSingularitySearch extends HSModule {
             upgradeSelector: '.singularityUpgrade',
             maxedToggleId: 'toggleMaxedGoldenQuarkUpgrades',
             placeholder: '[HS] Find an upgrade (cube, ambrosia...)',
+            words: ['quark', 'cube', 'ambrosia', 'octeract', 'ascension', 'corrupt', 'offering', 'platonic'],
         }, this.context);
         this.#octeracts = new HSUpgradeGridSearch({
             name: 'Octeract',
@@ -43,7 +44,8 @@ export class HSSingularitySearch extends HSModule {
             apLineId: 'octeractUpgradeAP',
             upgradeSelector: '.octeractUpgrade',
             maxedToggleId: 'toggleMaxedOcteractUpgrades',
-            placeholder: '[HS] Find an upgrade (cube, ambrosia...)',
+            placeholder: '[HS] Find an upgrade (quark, ambrosia...)',
+            words: ['quark', 'ambrosia', 'free', 'octeract', 'ascension', 'cap', 'speed', 'token'],
         }, this.context);
     }
 

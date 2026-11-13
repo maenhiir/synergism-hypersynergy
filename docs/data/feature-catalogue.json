@@ -174,7 +174,7 @@
           "details": [
             "Results take the place of the penalties text while you search, and the other perks are dimmed in the tree. Clear the field or press Escape to bring the penalties back.",
             "Searches perk names and descriptions in your game language, by the start of words. Several words must all match.",
-            "A row of clickable words (quark, cube, octeract, ant, luck, salvage, token, auto, challenge, purple) runs the common searches. The words are English; one that finds nothing is not shown.",
+            "A row of clickable words under each field runs the common searches (on perks: quark, cube, octeract, ant, luck, salvage, token, auto, challenge, purple). The words are English; one that finds nothing is not shown.",
             "Perks the game hasn't shown you yet stay out of the results.",
             "Golden Quarks and Octeracts: the upgrades that don't match are dimmed; hover one that stays lit for the game's tooltip. Searches upgrade names and descriptions the same way. Matching maxed upgrades the game's Maxed Upgrades button hides are counted apart: 2 results (+10 hidden)."
           ],

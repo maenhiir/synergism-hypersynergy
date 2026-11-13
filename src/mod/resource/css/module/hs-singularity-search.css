@@ -1,17 +1,13 @@
 /* The Singularity tab's search fields (HSSingularitySearch). Injected only while its setting is on. */
 
-/* The field, its Clear button and its count: the same on every subtab */
+/* The field, its count and its Clear button: the same on every subtab */
 .hs-sing-search-field {
     position: relative;
     flex: none;
     align-self: center;
-    width: min(260px, 100%);
+    width: min(320px, 100%);
     margin-top: 4px;
     pointer-events: auto;
-}
-
-.hs-sing-search-box {
-    position: relative;
 }
 
 .hs-sing-search-input {
@@ -31,31 +27,34 @@
     border-color: var(--gold-color);
 }
 
-/* Beside the field, out of the flow: the field stays centred. The game's button, at the field's height. */
-.hs-sing-search-clear {
+/* Inside the field, at its right end: the count, then the Clear button. Over the text box, which never resizes. */
+.hs-sing-search-end {
     position: absolute;
-    top: 0;
-    left: 100%;
-    height: 26px;
-    min-height: 0;
-    margin-left: 8px;
-    padding: 0 10px;
-    border: 1px solid #666;
-    border-radius: 4px;
+    top: 2px;
+    right: 2px;
+    bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.hs-sing-search-count {
+    color: #888;
     font-size: 0.85em;
     white-space: nowrap;
 }
 
-/* Inside the field, at its right end */
-.hs-sing-search-count {
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    transform: translateY(-50%);
-    color: #888;
-    font-size: 0.85em;
+/* The game's button, nearly the field's height: not a cross, too small a target */
+.hs-sing-search-clear {
+    height: 100%;
+    min-height: 0;
+    padding: 0 8px;
+    border: 1px solid #666;
+    border-radius: 3px;
+    font-size: 0.8em;
     white-space: nowrap;
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 /* Perks / Penalties */
@@ -76,16 +75,22 @@
     pointer-events: none;
 }
 
-/* One row, in the room above the penalties text */
-#hs-sing-search-perks-subjects {
+/* The clickable words under a field */
+.hs-sing-search-words {
     display: flex;
     flex: none;
+    flex-wrap: wrap;
     justify-content: center;
     gap: 3px;
+}
+
+/* One row, in the room above the penalties text */
+#hs-sing-search-perks .hs-sing-search-words {
+    flex-wrap: nowrap;
     height: 20px;
 }
 
-#hs-sing-search-perks-subjects button {
+.hs-sing-search-words button {
     min-height: 0;
     height: 20px;
     padding: 0 3px;
@@ -100,7 +105,7 @@
     pointer-events: auto;
 }
 
-#hs-sing-search-perks-subjects button:hover {
+.hs-sing-search-words button:hover {
     border-color: #999;
     color: var(--white-color);
 }
@@ -203,30 +208,17 @@
    the game does for that line; min-width fills the row. */
 .hs-sing-search-row {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     width: 0;
     min-width: 100%;
     margin: 0 0 8px;
 }
 
-/* The Clear button in the flow beside the field, its room kept while hidden: the box can be narrow (octeracts with the
-   maxed upgrades hidden) */
 .hs-sing-search-row .hs-sing-search-field {
-    display: flex;
-    gap: 8px;
     width: min(360px, 100%);
     margin-top: 0;
-}
-
-.hs-sing-search-row .hs-sing-search-box {
-    flex: 1;
-    min-width: 0;
-}
-
-.hs-sing-search-row .hs-sing-search-clear {
-    position: static;
-    flex: none;
-    margin-left: 0;
 }
 
 #actualSingularityUpgradeContainer.hs-sing-search-active .singularityUpgrade:not(.hs-sing-search-hit),

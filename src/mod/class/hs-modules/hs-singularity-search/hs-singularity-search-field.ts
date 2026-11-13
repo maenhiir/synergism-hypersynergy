@@ -1,15 +1,18 @@
 // What the Singularity search fields share (docs/features/singularity-search.md): the field with its Clear button and
-// result count, and reading a game tooltip without showing it.
+// result count, the clickable words under it, and reading a game tooltip without showing it.
+
+import { matchesSearch, searchTerms } from "./hs-singularity-search-match";
 
 /**
- * A search field: the text, a Clear button beside it (hidden while empty), the number of results inside it at its
- * right end. Escape clears it and leaves it.
+ * A search field: the text, then at its right end, inside it, the number of results and a Clear button (hidden while
+ * empty). Nothing moves or resizes as they appear. Escape clears the field and leaves it.
  */
 export class HSSearchField {
     readonly element: HTMLElement;
     readonly #input: HTMLInputElement;
     readonly #clearButton: HTMLElement;
     readonly #count: HTMLElement;
+    readonly #end: HTMLElement;
     readonly #onChange: () => void;
 
     constructor(placeholder: string, onChange: () => void) {
@@ -45,16 +48,17 @@ export class HSSearchField {
         const count = document.createElement('span');
         count.className = 'hs-sing-search-count';
 
-        // The text and its count: the count sits at the box's right end, whatever the Clear button's place
-        const box = document.createElement('div');
-        box.className = 'hs-sing-search-box';
-        box.append(input, count);
+        // Over the text box's right end: typed text stops before it (#fitText)
+        const end = document.createElement('div');
+        end.className = 'hs-sing-search-end';
+        end.append(count, clearButton);
 
-        field.append(box, clearButton);
+        field.append(input, end);
         this.element = field;
         this.#input = input;
         this.#clearButton = clearButton;
         this.#count = count;
+        this.#end = end;
         this.#changed(false);
     }
 
@@ -84,16 +88,56 @@ export class HSSearchField {
         this.#input.title = '';
         // Room for a few typed characters at least. offsetWidth: an input's clientWidth shrinks with its padding,
         // which follows the count.
-        if (short !== undefined && this.#count.offsetWidth > this.#input.offsetWidth - 60) {
+        if (short !== undefined && this.#end.offsetWidth > this.#input.offsetWidth - 60) {
             this.#count.textContent = short;
             this.#input.title = text;
         }
-        this.#input.style.paddingRight = text === '' ? '' : `${this.#count.offsetWidth + 16}px`;
+        this.#fitText();
     }
 
     #changed(notify = true): void {
-        this.#clearButton.style.visibility = this.#input.value === '' ? 'hidden' : 'visible';
+        this.#clearButton.style.display = this.#input.value === '' ? 'none' : '';
+        this.#fitText();
         if (notify) this.#onChange();
+    }
+
+    /** Typed text stops before the count and the Clear button. */
+    #fitText(): void {
+        const endWidth = this.#end.offsetWidth;
+        this.#input.style.paddingRight = endWidth === 0 ? '' : `${endWidth + 8}px`;
+    }
+}
+
+/**
+ * The clickable words under a field: a click fills the field and searches. The words are English in every language.
+ */
+export class HSSearchWords {
+    readonly element: HTMLElement;
+    readonly #buttons = new Map<string, HTMLElement>();
+
+    constructor(words: readonly string[], field: HSSearchField) {
+        const row = document.createElement('div');
+        row.className = 'hs-sing-search-words';
+        for (const word of words) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = word;
+            button.addEventListener('click', () => field.fill(word));
+            row.append(button);
+            this.#buttons.set(word, button);
+        }
+        this.element = row;
+    }
+
+    /**
+     * Hides a word that finds nothing in `texts` (normalized searchable texts): nothing unlocked yet on that subject,
+     * or another wording in the game's language.
+     */
+    refresh(texts: readonly string[]): void {
+        this.#buttons.forEach((button, word) => {
+            const terms = searchTerms(word);
+            button.style.display = texts.some(text => matchesSearch(text, terms)) ? '' : 'none';
+        });
     }
 }
 
