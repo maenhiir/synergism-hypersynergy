@@ -1,5 +1,5 @@
 // What the Singularity search fields share (docs/features/singularity-search.md): the field with its Clear button and
-// result count, the clickable words under it, and reading a game tooltip without showing it.
+// result count, the clickable words under it, the list of results, and reading a game tooltip without showing it.
 
 import { matchesSearch, searchTerms } from "./hs-singularity-search-match";
 
@@ -138,6 +138,37 @@ export class HSSearchWords {
             const terms = searchTerms(word);
             button.style.display = texts.some(text => matchesSearch(text, terms)) ? '' : 'none';
         });
+    }
+}
+
+/**
+ * The list of the matching elements' tooltips, as cards: one column, scrolled inside, its height down to the window's
+ * bottom (hs-singularity-search.css). Placed by its owner.
+ */
+export class HSSearchResults {
+    readonly element: HTMLElement;
+    readonly #emptyText: string;
+
+    constructor(emptyText: string) {
+        this.element = document.createElement('div');
+        this.element.className = 'hs-sing-search-results';
+        this.#emptyText = emptyText;
+    }
+
+    /** The cards; an empty list shows `emptyText`, null empties the list (no search, or no room for it). */
+    show(cards: HTMLElement[] | null): void {
+        this.element.scrollTop = 0;
+        // For its height down to the window's bottom
+        this.element.style.setProperty('--hs-sing-search-results-top', `${this.element.getBoundingClientRect().top}px`);
+
+        if (cards?.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'hs-sing-search-empty';
+            empty.textContent = this.#emptyText;
+            this.element.replaceChildren(empty);
+        } else {
+            this.element.replaceChildren(...(cards ?? []));
+        }
     }
 }
 

@@ -110,19 +110,23 @@
     color: var(--white-color);
 }
 
-#hs-sing-search-perks-results {
+/* The results, on every subtab: one column of cards, scrolled inside */
+.hs-sing-search-results {
     display: flex;
-    flex: 1;
     flex-direction: column;
     gap: 6px;
-    min-height: 0;
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: #666 transparent;
 }
 
-#hs-sing-search-perks-results:not(:empty) {
+.hs-sing-search-results:not(:empty) {
     pointer-events: auto;
+}
+
+#hs-sing-search-perks-results {
+    flex: 1;
+    min-height: 0;
 }
 
 /* Down to the window's bottom, out of the flow: nothing moves. Not when the game stacks the tree under the penalties
@@ -179,6 +183,7 @@
 }
 
 .hs-sing-search-empty {
+    flex: none;
     margin-top: 16px;
     color: #888;
     text-align: center;
@@ -231,4 +236,68 @@
 #octeractUpgradeContainer.hs-sing-search-active .octeractUpgradeSpine,
 #octeractUpgradeContainer.hs-sing-search-active .octeractUpgradeTrack::before {
     opacity: 0.2;
+}
+
+/* Golden Quarks: the cards left of the box (placed by HSUpgradeGridSearch), out of the flow: nothing moves.
+   Octeracts: the cards over the column beside the box, its stats hidden. Down to the window's bottom. */
+#singularityUpgradeContainer:has(> .hs-sing-search-results),
+#octeractResourceContainer:has(> .hs-sing-search-row) {
+    position: relative;
+}
+
+#singularityUpgradeContainer > .hs-sing-search-results,
+#octeractResourceContainer > .hs-sing-search-results {
+    position: absolute;
+    z-index: 2;
+    max-height: calc(100vh - var(--hs-sing-search-results-top, 100vh) - 8px);
+}
+
+#octeractResourceContainer > .hs-sing-search-results {
+    right: 0;
+    left: 0;
+}
+
+#octeractResourceContainer.hs-sing-search-covered > :not(.hs-sing-search-row, .hs-sing-search-results) {
+    visibility: hidden;
+}
+
+/* The field level with the box's top, not halfway down a tall box: the game centres the column and the box against
+   each other, and the field's row would push the box down */
+#singularityOcteracts:has(> #octeractResourceContainer > .hs-sing-search-row) {
+    align-items: flex-start;
+}
+
+#octeractResourceContainer > .hs-sing-search-row {
+    margin: 5px 0 12px;
+}
+
+/* An upgrade's tooltip, compact, the same look as the perks' cards: name and level on one row, description, effect */
+.hs-sing-search-card {
+    flex: none;
+    padding: 4px 8px;
+    border: 1px solid var(--gold-color);
+    border-radius: 5px;
+    background-color: var(--alert-color);
+    font-size: 0.875em;
+    line-height: 1.25;
+    text-align: left;
+}
+
+.hs-sing-search-card-title {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 1.05em;
+}
+
+.hs-sing-search-card-level {
+    flex: none;
+    font-size: 0.75em;
+    white-space: nowrap;
+}
+
+.hs-sing-search-card-description,
+.hs-sing-search-card-effect {
+    margin-top: 2px;
 }
