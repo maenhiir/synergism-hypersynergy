@@ -47,6 +47,13 @@
     "enabled": false,
     "hidden": true
   },
+  "calculationToolsGrouped": {
+    "settingName": "calculationToolsGrouped",
+    "settingDescription": "Calculation tools: list grouped by theme (List order radio buttons above the Tools tab's list)",
+    "settingType": "boolean",
+    "enabled": true,
+    "hidden": true
+  },
   "headerAmbrosiaSlotsShown": {
     "settingName": "headerAmbrosiaSlotsShown",
     "settingDescription": "Ambrosia loadout slots shown in the header (block next to the header's edit tray, 16 = all)",
