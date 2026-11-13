@@ -54,7 +54,7 @@ export class HSCalculationTools {
         return [
             HSUIC.Div({
                 class: 'hs-panel-grid-full-span hs-panel-grid-hint',
-                html: 'Runs a calculation on the current save. "(C)": can also list its components.'
+                html: 'Runs a calculation on the current save.<br>"(C)": can also list its components.'
             }),
             HSUIC.Div({
                 id: HSCalculationTools.#orderId,
