@@ -35,11 +35,19 @@ python scripts/tests/test-changelog-validation.py
 node --check docs/js/changelog.js
 ```
 
-The changelog keeps player-facing additions, behavior changes, removals and fixes. Source-only records are not promoted to confirmed releases; historical audit notes and change evidence stay in the data even when the displayed wording is simplified.
+### Writing patch notes
 
-The public page uses `display_policy: released-only`: published releases and tagged builds are shown; source-only and planned version records stay in the research data. Dev versions are labeled separately, and channel-merge notices describe verified transfers between Live and Dev.
+Compare the intended release with the previous released build on its channel. Write short bullets about player-facing additions, behavior changes, removals and fixes. Include platform-specific effects or required player actions where relevant. Use the same change list and catch-up links in the website entry, annotated tag and GitHub release notes. In Markdown notes, link to the published changelog entries for incoming versions. Save the Markdown notes under `local/` and pass the file to the mod release helper with `--notes-file`.
 
-When excluding an unconfirmed record, retain its delivered changes in the first verified release that contains them. Consolidate repeated notes and omit intermediate behavior that was superseded before release; `included_version_records` records the underlying research IDs. Check the released source before describing a change as available.
+The public changelog includes early version records alongside tagged and published releases. A historical build has a surviving bundle with the recorded version. A source version has a verified version declaration or source endpoint. Use the commit date for these records and link their evidence. Dev versions are labeled separately. Keep historical audit notes and change evidence in the data when simplifying the displayed wording.
+
+For a cross-channel catch-up, add a `merges` record to the receiving release. Use `from_entry_ids` for each source version brought in since the previous catch-up, newest first. Check the Git history for intervening versions, prior ports, and changes already present on the receiving branch. Use `partial_entry_ids` when the catch-up brings in only part of a source release. Link to existing notes for incoming changes and use the receiving release's `changes` for its new work. Preserve each channel's wording for the changes it documents when merging changelog data.
+
+When Dev brings in a Live fix made between releases, or the other way around, check whether existing Live patch notes describe it. If the fix first gets documented in the Dev release, include it in that release's `changes`, cite the Live commit, and credit the fix's author with the `changes` role. Keep the merge commit and source evidence with the catch-up record.
+
+Review each catch-up's notes and `contributors` by hand. A Git filter for incoming commits can help identify what to review. Check the actual changes and source notes for cherry-picks and fixes made during merge resolution. Give the authors of the changes listed on the card the `changes` role and the merger the `merge` role. Incoming work covered by linked notes keeps its credit there. The contributor refresh preserves the reviewed catch-up credits.
+
+Record historical changes at the earliest verified version that contains them. Consolidate repeated notes and keep `included_version_records` for earlier records reviewed as part of a release audit. Check the surviving bundle or release evidence before describing a change as released.
 
 Contributor profiles use verified public identities, with aliases combined. Credits cover human authors and recorded co-authors in each version's changes; release-only contributions are identified. To refresh credits with all required Original, Live and Dev historical commits available locally, run:
 
@@ -62,7 +70,7 @@ Check these flows at desktop and narrow/mobile widths:
 - Search nonsense: a clear no-results message appears. Clear the search or reset to restore the guide.
 - Open a feature permalink: its details open even if the shared search query would otherwise hide it.
 - Changelog → Dev versions: only labeled Dev builds appear, newest first, with dates and contributors. Search a version or contributor, then Clear to restore the list.
-- Changelog → Live → a Dev → Live notice: its version link reveals the source Dev release even when the Live filter was selected. Unconfirmed source versions have no public version cards.
+- Changelog → Live → a Dev → Live notice. Each version link reveals its source Dev release even when the Live filter was selected. The receiving branch's changes appear under the notice.
 - Wiki → a category → a related setting → its feature link: each destination exists.
 - Disable JavaScript: normal navigation and every feature/detail remain available; only search requires JavaScript.
 - Keyboard Tab reaches navigation, search, category choice and detail controls with visible focus. With reduced motion enabled, the version animation stops.

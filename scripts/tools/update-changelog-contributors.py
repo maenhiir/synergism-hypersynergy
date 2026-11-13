@@ -93,35 +93,6 @@ def baseline(entry: dict, entries: list[dict], released_only: bool = False) -> s
     return next((sha for sha in git('rev-list', '--first-parent', entry['commit']).splitlines()[1:] if sha in candidates), None)
 
 
-def merged_from_live(entry: dict) -> set[str]:
-    """Commits a Dev entry's Live merges brought into Dev: they are credited on the Live release.
-
-    Only what each merge brought in (first parent..other parent): Dev commits Live already had stay Dev's.
-    Not the mirror for Live entries: they describe the Dev work they ship, often without citing its commits."""
-    if entry['channel'] != 'dev':
-        return set()
-    merged = set()
-    for merge in entry.get('merges', []):
-        if merge.get('direction') != 'live-to-dev':
-            continue
-        for sha in merge.get('commits') or [merge['commit']]:
-            parents = git('rev-list', '--parents', '-n', '1', sha).split()[1:]
-            for parent in parents[1:]:
-                merged.update(git('rev-list', '--no-merges', f'{parents[0]}..{parent}').splitlines())
-    return merged
-
-
-def cited_commits(entry: dict) -> list[str]:
-    """Full commit hashes the entry's changes give as evidence."""
-    shas = []
-    for change in entry['changes']:
-        for url in change['evidence']:
-            match = re.search(r'/commit/([0-9a-f]{40})$', url)
-            if match and match.group(1) not in shas:
-                shas.append(match.group(1))
-    return shas
-
-
 def update(data: dict) -> dict:
     aliases = {}
     for identity, profile in PROFILES.items():
@@ -131,15 +102,16 @@ def update(data: dict) -> dict:
                 raise ValueError('Ambiguous contributor identity')
             aliases[author] = identity
     for entry in data['entries']:
+        if entry.get('merges'):
+            # Catch-up credits are reviewed against their branch-only changes and merge evidence.
+            continue
         base = baseline(entry, data['entries'], released_only=data.get('display_policy') == 'released-only'
                         and entry['status'] in {'published', 'tagged'})
         revision = f'{base}..{entry["commit"]}' if base else entry['commit']
         args = ['rev-list', '--reverse', '--topo-order', '--no-merges', revision]
         if entry['channel'] == 'loader':
             args += ['--', 'synergism_modloader/']
-        # A commit merged from Live still counts when this entry lists its change.
-        merged = merged_from_live(entry) - set(cited_commits(entry))
-        commits = [commit_record(sha) for sha in git(*args).splitlines() if sha not in merged]
+        commits = [commit_record(sha) for sha in git(*args).splitlines()]
         # A same-build alias/version marker can have no delta; its author still recorded this version.
         if not commits:
             commits = [commit_record(entry['commit'])]
@@ -156,11 +128,8 @@ def update(data: dict) -> dict:
             'Aliases are merged into verified public identities; automated tools are excluded. Release-only credits are labeled. '
             'Loader credits are limited to loader files; the first record on a fork uses the nearest preserved earlier baseline where available. '
             'Released builds compare against the previous released build, so unconfirmed source markers do not hide earlier contributors.')
-    dev_rule = ('Dev credits leave out the commits merged from Live unless the entry lists their changes: '
-                'they are credited on the Live release.')
-    for text in (rule, dev_rule):
-        if text not in data['methodology']:
-            data['methodology'].append(text)
+    if rule not in data['methodology']:
+        data['methodology'].append(rule)
     return data
 
 
