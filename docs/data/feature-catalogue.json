@@ -1662,12 +1662,15 @@
           "where": "Tools → calculation picker → Calc. reduced / Calc. components",
           "summary": "Computes supported values directly from your current save.",
           "details": [
-            "The alphabetized picker covers supported Ambrosia luck and generation, Red/Purple systems, runes, talismans, GQ, shop effects and other registered calculations.",
+            "The picker is grouped by theme (Ambrosia, Red Ambrosia, Ascension & Cubes, Singularity, Runes & Talismans, Ants & Honey, Other), A→Z inside each group; List order switches to one A→Z list. It covers supported Ambrosia luck and generation, Red/Purple systems, runes, talismans, GQ, shop effects and other registered calculations.",
             "Cube Bank and Cube Gain: Corruption Lines expose the currently supported cube breakdowns. Options select applicable calculation modes.",
             "Each run forces a save read, so the tool can be used with background GDS off; component-capable entries can show their factors."
           ],
           "limits": [
             "The old broad Cube Multiplier and Ascension Score tools were removed when their formulas became incomplete; they must not be treated as current features. Entries without components return the reduced result."
+          ],
+          "settings": [
+            "calculationToolsGrouped"
           ]
         },
         {
