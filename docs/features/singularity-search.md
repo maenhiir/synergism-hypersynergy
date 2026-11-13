@@ -51,8 +51,8 @@ their ids), `-field.ts` (the field, its clickable words, the results list and th
   no class: they are the parts between its line breaks, the description the light blue one, the effect the next gold
   one; another shape (a game update) gives the whole tooltip.
 - **Maxed upgrades the game's "Maxed Upgrades" button hides are counted apart**: "2 results (+10 hidden)". They stay
-  hidden and get no card. The count and the cards follow a click on that button. When only hidden ones match, the
-  empty list names the button under "No upgrade found".
+  hidden and get no card. The count and the cards follow a click on that button. A grey line under the last card, or
+  under "No upgrade found", gives their number and names the button.
 - The game rebuilds the octeract box the first time its subtab opens: the row is put back at each opening.
 - The game never hides a locked upgrade on these grids (an upgrade above the highest singularity shows its minimum in
   red): no spoiler check.

@@ -156,27 +156,31 @@ export class HSSearchResults {
     }
 
     /**
-     * The cards; an empty list shows `emptyText`, with `emptyHint` under it, null empties the list (no search, or no
-     * room for it).
+     * The cards, with `hint` under the last one; an empty list shows `emptyText`, with `hint` under it; null empties the
+     * list (no search, or no room for it).
      */
-    show(cards: HTMLElement[] | null, emptyHint?: string): void {
+    show(cards: HTMLElement[] | null, hint?: string): void {
         this.element.scrollTop = 0;
         // For its height down to the window's bottom
         this.element.style.setProperty('--hs-sing-search-results-top', `${this.element.getBoundingClientRect().top}px`);
 
-        if (cards?.length === 0) {
+        if (!cards) {
+            this.element.replaceChildren();
+            return;
+        }
+        const hintLine = hint ? document.createElement('div') : null;
+        if (hintLine) {
+            hintLine.className = 'hs-sing-search-hint';
+            hintLine.textContent = hint ?? '';
+        }
+        if (cards.length === 0) {
             const empty = document.createElement('div');
             empty.className = 'hs-sing-search-empty';
             empty.textContent = this.#emptyText;
-            if (emptyHint) {
-                const hint = document.createElement('div');
-                hint.className = 'hs-sing-search-empty-hint';
-                hint.textContent = emptyHint;
-                empty.append(hint);
-            }
+            if (hintLine) empty.append(hintLine);
             this.element.replaceChildren(empty);
         } else {
-            this.element.replaceChildren(...(cards ?? []));
+            this.element.replaceChildren(...cards, ...(hintLine ? [hintLine] : []));
         }
     }
 }

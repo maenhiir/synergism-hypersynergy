@@ -189,9 +189,16 @@
     text-align: center;
 }
 
-.hs-sing-search-empty-hint {
-    margin-top: 6px;
+/* Under the last card, or under the empty list's text */
+.hs-sing-search-hint {
+    flex: none;
+    color: #888;
     font-size: 0.8em;
+    text-align: center;
+}
+
+.hs-sing-search-empty > .hs-sing-search-hint {
+    margin-top: 6px;
 }
 
 /* The game's stacked layout (its own breakpoint) has no room above the penalties text: make the field's and the words' */

@@ -174,15 +174,15 @@ export class HSUpgradeGridSearch {
     /**
      * The cards of the upgrades found, read again for their current values. None where there's no room: the
      * dimming alone shows them. The maxed upgrades the game's toggle hides get none: they're counted apart, and
-     * `emptyHint` says so when no other upgrade matches.
+     * `hint` says so under the cards.
      */
-    #showCards(upgrades: HTMLElement[] | null, emptyHint?: string): void {
+    #showCards(upgrades: HTMLElement[] | null, hint?: string): void {
         if (!this.#results) return;
 
         const column = this.#column();
         const fits = upgrades !== null && this.#positionResults(column);
         column?.classList.toggle(COVERED_CLASS, fits);
-        this.#results.show(fits ? upgrades.map(HSUpgradeGridSearch.#readCard) : null, emptyHint);
+        this.#results.show(fits ? upgrades.map(HSUpgradeGridSearch.#readCard) : null, hint);
     }
 
     /** Puts the cards' box in place for this window's layout; false when there's no room for it. */
