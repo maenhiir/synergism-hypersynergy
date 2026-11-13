@@ -151,7 +151,7 @@ export class HSBackup {
                 html: `${part('save', 'Save')}${part('modData', 'Mod data', HSBackup.#modDataHint)}${part('gamePrefs', 'Game preferences', HSBackup.#gamePrefsHint)}${part('logs', 'Logs')}`
             }),
             HSUIC.Button({ id: HSBackup.#exportBtnId, text: 'Export to file' }),
-            HSUIC.Button({ id: HSBackup.#importBtnId, text: 'Import from file…' }),
+            HSUIC.Button({ id: HSBackup.#importBtnId, text: 'Import from file…', props: { title: 'Also takes a save exported by the game' } }),
         ];
     }
 
