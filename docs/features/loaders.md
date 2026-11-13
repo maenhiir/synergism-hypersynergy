@@ -71,6 +71,30 @@ Some patcher globals are also set late. The stage patch sets `__HS_i18next`, `__
 
 `__hs_work_current` in the game folder holds the last patched game, so it is stale after a game update: compare its date with the exe's.
 
+## Taking over in a fork
+
+For when neither repo is maintained anymore. Installed loaders download the mod and `patcher.js` from `Ferlieloi` or
+`maenhiir`, so a fixed fork reaches no one until players point their loader to it. Every URL is
+`<owner>/synergism-hypersynergy`, so only the owner changes: keep the repo's name. `git grep -n -i -E "ferlieloi|maenhiir"`
+lists every place (tests and docs included).
+- **Tampermonkey.** The bridge builds every URL from its `repo` value, the owner (`repositoryRoot` in
+  `src/loader/shared/loader-urls.mjs`): a player can set it to the fork's owner as for Dev (README, "Live or Dev"), with
+  no new script. The bridge still auto-updates from Ferlieloi's repo through its `@updateURL`, so a bridge published
+  there later sets it back. A fork's own bridge: `defaultRepo` in `loader-urls.mjs`, the `@updateURL` and `@namespace`
+  in `scripts/build-loaders.cjs`, then `npm run build:loaders` (it also rebuilds `patcher.js`, which carries
+  `defaultRepo`), and the install links (README, `INSTALL_URL` in `hs-core/hs-bookmarklet-notice.ts`).
+- **Steam.** The two channels are fixed in `synergism_modloader/lib/config.js` (`CHANNELS`), and installed loaders
+  update themselves from Ferlieloi's releases (`launcherUpdater.js`, `build.publish` in its `package.json`): players
+  install the fork's loader once. Its release workflow only runs on Ferlieloi's repo (the `if:` in
+  `.github/workflows/loader-release.yml`).
+- **Bookmarklet.** `release/loader/loader.js`, written by hand, loads `Ferlieloi@master`.
+- **The mod.** The version check reads `window.__HS_REPO` (set by both loaders), else `HSGlobal.Release.githubOwner`,
+  which is also the mod's GitHub link; `modWebsiteUrl` is next to it (`hs-core/hs-global.ts`).
+- **Website and wiki.** `repository` in `docs/data/feature-catalogue.json`, `REMOTE` in `scripts/tools/prepare-wiki.py`,
+  the GitHub Pages site (`docs/dev/publishing-guide.md`).
+- **Maintainer tools.** `scripts/merge-live-release.mjs` finds Live by the name `Ferlieloi`; the release helper reads
+  `origin`.
+
 ## Decisions
 
 - **One loader at a time** (`app.requestSingleInstanceLock`): a second start brings the first loader to the front and closes, with a line in the console and in `loader-startup.log`. The lock follows the user data folder, which the installed loader and `npm start` share: close one to run the other.

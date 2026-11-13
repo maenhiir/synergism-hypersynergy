@@ -88,9 +88,17 @@ The mod is written in TypeScript and bundled with esbuild. It needs [Node.js](ht
 3. `start-dev-server.bat`: rebuilds the mod at each change and serves it on `http://127.0.0.1:8080`.
 4. In Tampermonkey, turn the regular loader script off and install [src/loader/hypersynergism.dev.js](src/loader/hypersynergism.dev.js), which loads the mod from that local server. Reload the game after each change.
 
-`npm run dev` rebuilds at each change without the server, and `npm run build` builds once. The build doesn't check types: use your editor or `npx tsc --noEmit`.
+`npm run dev` rebuilds at each change without the server, and `npm run build` builds once. The build doesn't check types: use your editor or `npx tsc --noEmit`. `npm test` runs the tests.
 
 The Steam loader is a separate package, described in the [loader's README](synergism_modloader/README.md).
+
+### Where to start
+
+[AGENTS.md](AGENTS.md) is written for coding agents (Claude Code, Codex…), and is also the shortest map of the project for people: the rules most changes need, and pointers to [docs/](docs/README.md), which holds how the game behaves where the mod depends on it, one file per feature with its rules and the decisions behind them, and the procedures (releasing, updating after a game update).
+
+### If the mod breaks and nobody maintains it anymore
+
+Fork the repository and keep its name, `synergism-hypersynergy`: every loader URL uses it. After a game update, [docs/game/updating.md](docs/game/updating.md) is an ordered checklist, which a coding agent pointed at `AGENTS.md` can follow. Players' loaders still download the mod from the original repositories, so a fixed fork reaches no one until they switch: what to change in each loader is in [docs/features/loaders.md](docs/features/loaders.md#taking-over-in-a-fork).
 
 ## Credits
 

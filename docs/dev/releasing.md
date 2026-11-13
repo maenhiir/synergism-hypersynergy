@@ -125,8 +125,8 @@ Use this procedure for a full Dev catch-up. For a single change, see [Porting a 
 
 No script: the release helper is for the mod only and ignores `loader-v` tags.
 1. Commit the loader change, then a separate commit "release: Hypersynergism Loader X.Y.Z" bumping
-   `synergism_modloader/package.json`, `package-lock.json` (the two top version lines only: a dependency further down
-   has a similar version) and the example tag in `synergism_modloader/README.md`.
+   `synergism_modloader/package.json` and `package-lock.json` (the two top version lines only: a dependency further
+   down has a similar version).
 2. Push `master`.
 3. `git tag -a loader-vX.Y.Z` with a message: a title line ("Hypersynergism Loader X.Y.Z"), an empty line, then the
    player-facing notes (Markdown rendered; bold lines as section titles; `--cleanup=whitespace` if a line starts with
