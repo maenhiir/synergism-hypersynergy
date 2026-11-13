@@ -296,19 +296,6 @@
           ]
         },
         {
-          "id": "potions-ten",
-          "title": "Buy and consume potions ×10",
-          "where": "Offering and Obtainium potion controls",
-          "summary": "Adds BUY 10× and CONSUME 10× next to the native potion buttons.",
-          "details": [
-            "Consumption clicks the native action ten times. Buying handles the game's purchase modes, including Buy ANY's quantity prompt.",
-            "Both Offering and Obtainium potions are supported."
-          ],
-          "limits": [
-            "Each action uses the game's costs and available stock."
-          ]
-        },
-        {
           "id": "reactive-hover",
           "title": "Repeat hover while holding left Shift",
           "where": "Settings → Input → Repeat hover",
@@ -1688,19 +1675,6 @@
             "logTimestamp",
             "showDebugLogs",
             "autosingFullLog"
-          ]
-        },
-        {
-          "id": "settings-dump",
-          "title": "Dump settings and game variables",
-          "where": "Tools → Dump Settings / Dump Game vars",
-          "summary": "Prints diagnostic snapshots to the browser or game developer console.",
-          "details": [
-            "Dump Settings shows the mod settings. Dump Game vars prints current game, PseudoCoin, campaign, account and event data available to the mod.",
-            "These actions help diagnose calculations; they do not import or modify the save."
-          ],
-          "limits": [
-            "Console output may contain save/account context; review it before sharing."
           ]
         },
         {
