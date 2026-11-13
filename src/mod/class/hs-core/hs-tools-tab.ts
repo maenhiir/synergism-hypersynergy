@@ -10,7 +10,6 @@ import { HSBookmarkletNotice } from "./hs-bookmarklet-notice";
 import { HSGithub } from "./github/hs-github";
 import { HSHeaterInputModalController } from "../hs-modules/hs-heater/ui/hs-heater-input-modal-controller";
 import { HSUtils } from "../hs-utils/hs-utils";
-import { HSNotifyPosition, HSNotifyType } from "../../types/module-types/hs-ui-types";
 
 /**
  * Class: HSToolsTab
@@ -49,9 +48,6 @@ export class HSToolsTab {
                     HSUIC.Button({ id: 'hs-panel-dump-gamedata-btn', text: 'Dump Game vars' }),
                     HSUIC.Button({ id: 'hs-panel-exit-exalt-bug-btn', text: 'Fix Exalt Bug' }),
                     HSUIC.Button({ id: 'hs-panel-clear-settings-btn', text: 'CLEAR SETTINGS', styles: { borderColor: 'red' } }),
-                    this.#buildGridSectionHeader('Testing tools'),
-                    HSUIC.Button({ id: 'hs-panel-test-notify-btn', text: 'Notify test' }),
-                    HSUIC.Button({ id: 'hs-panel-test-notify-long-btn', text: 'Notify test 2' }),
                     this.#buildGridSectionHeader('Calculation tools'),
                     ...HSCalculationTools.buildToolsSection(),
                 ],
@@ -76,11 +72,6 @@ export class HSToolsTab {
     }
 
     static #bindEvents() {
-        const positions: HSNotifyPosition[] = ["topLeft", "top", "topRight", "right", "bottomRight", "bottom", "bottomLeft", "left"];
-        const colors: HSNotifyType[] = ["default", "warning", "error", "success"];
-        let p_idx = -1;
-        let c_idx = -1;
-
         HSBookmarkletNotice.bindToolsSection();
         HSBackup.bindToolsSection();
         HSCalculationTools.bindToolsSection();
@@ -116,24 +107,6 @@ export class HSToolsTab {
         this.#bindButton('#hs-panel-clear-settings-btn', () => HSBackup.clearSettingsAndReload());
         this.#bindButton('#hs-panel-check-version-btn', () => this.#checkVersion());
         this.#bindButton('#hs-panel-exit-exalt-bug-btn', () => this.#fixExaltBug());
-
-        this.#bindButton('#hs-panel-test-notify-btn', async () => {
-            p_idx = (p_idx + 1) % positions.length;
-            c_idx = (c_idx + 1) % colors.length;
-            await HSUI.Notify('Test notification', {
-                position: positions[p_idx],
-                notificationType: colors[c_idx]
-            });
-        });
-
-        this.#bindButton('#hs-panel-test-notify-long-btn', async () => {
-            p_idx = (p_idx + 1) % positions.length;
-            c_idx = (c_idx + 1) % colors.length;
-            await HSUI.Notify('This is a really very extremely long test notification which tests if the notification works with a long notification test notification ', {
-                position: positions[p_idx],
-                notificationType: colors[c_idx]
-            });
-        });
     }
 
     static #bindButton(selector: string, callback: () => void | Promise<void>) {

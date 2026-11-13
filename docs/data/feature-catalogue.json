@@ -1712,15 +1712,6 @@
           ]
         },
         {
-          "id": "notification-test",
-          "title": "Short and long notification previews",
-          "where": "Tools → Notify test / Notify test 2",
-          "summary": "Previews the mod notification system.",
-          "details": [
-            "Repeated presses cycle through supported positions and message types; the second button uses a long message."
-          ]
-        },
-        {
           "id": "framework",
           "title": "Modular TypeScript framework",
           "where": "Repository → src/mod; existing developer docs",
