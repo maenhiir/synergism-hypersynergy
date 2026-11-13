@@ -155,8 +155,11 @@ export class HSSearchResults {
         this.#emptyText = emptyText;
     }
 
-    /** The cards; an empty list shows `emptyText`, null empties the list (no search, or no room for it). */
-    show(cards: HTMLElement[] | null): void {
+    /**
+     * The cards; an empty list shows `emptyText`, with `emptyHint` under it, null empties the list (no search, or no
+     * room for it).
+     */
+    show(cards: HTMLElement[] | null, emptyHint?: string): void {
         this.element.scrollTop = 0;
         // For its height down to the window's bottom
         this.element.style.setProperty('--hs-sing-search-results-top', `${this.element.getBoundingClientRect().top}px`);
@@ -165,6 +168,12 @@ export class HSSearchResults {
             const empty = document.createElement('div');
             empty.className = 'hs-sing-search-empty';
             empty.textContent = this.#emptyText;
+            if (emptyHint) {
+                const hint = document.createElement('div');
+                hint.className = 'hs-sing-search-empty-hint';
+                hint.textContent = emptyHint;
+                empty.append(hint);
+            }
             this.element.replaceChildren(empty);
         } else {
             this.element.replaceChildren(...(cards ?? []));

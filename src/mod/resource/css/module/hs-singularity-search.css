@@ -189,6 +189,11 @@
     text-align: center;
 }
 
+.hs-sing-search-empty-hint {
+    margin-top: 6px;
+    font-size: 0.8em;
+}
+
 /* The game's stacked layout (its own breakpoint) has no room above the penalties text: make the field's and the words' */
 @media (width <= 1024px) {
     #singularityInfo:has(> #hs-sing-search-perks) #singularityPenaltiesMultiline {

@@ -156,13 +156,15 @@ export class HSUpgradeGridSearch {
         this.#container.classList.toggle(ACTIVE_CLASS, searching);
 
         const shownHits = hits.filter(upgrade => !upgrade.classList.contains(HIDDEN_MAXED_CLASS));
-        this.#showCards(searching ? shownHits : null);
+        const hidden = hits.length - shownHits.length;
+        const hint = hidden === 0 ? undefined
+            : `${hidden} maxed upgrade${hidden === 1 ? '' : 's'} match, hidden by the game's Maxed Upgrades button`;
+        this.#showCards(searching ? shownHits : null, hint);
 
         if (!searching) {
             this.#field.setCount('');
             return;
         }
-        const hidden = hits.length - shownHits.length;
         const shown = shownHits.length;
         const results = `${shown} result${shown === 1 ? '' : 's'}`;
         if (hidden === 0) this.#field.setCount(results);
@@ -171,15 +173,16 @@ export class HSUpgradeGridSearch {
 
     /**
      * The cards of the upgrades found, read again for their current values. None where there's no room: the
-     * dimming alone shows them. The maxed upgrades the game's toggle hides get none: they're counted apart.
+     * dimming alone shows them. The maxed upgrades the game's toggle hides get none: they're counted apart, and
+     * `emptyHint` says so when no other upgrade matches.
      */
-    #showCards(upgrades: HTMLElement[] | null): void {
+    #showCards(upgrades: HTMLElement[] | null, emptyHint?: string): void {
         if (!this.#results) return;
 
         const column = this.#column();
         const fits = upgrades !== null && this.#positionResults(column);
         column?.classList.toggle(COVERED_CLASS, fits);
-        this.#results.show(fits ? upgrades.map(HSUpgradeGridSearch.#readCard) : null);
+        this.#results.show(fits ? upgrades.map(HSUpgradeGridSearch.#readCard) : null, emptyHint);
     }
 
     /** Puts the cards' box in place for this window's layout; false when there's no room for it. */
