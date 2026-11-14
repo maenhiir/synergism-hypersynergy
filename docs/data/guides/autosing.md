@@ -1,6 +1,9 @@
 # Auto-Sing guide
 
-Auto-Sing plays singularities for you, following a strategy. It's for the end game: S216+, and it only works fully once you've cleared EXALT6. It needs Tampermonkey or Steam: with the bookmark, it's slow and unreliable.
+Auto-Sing plays singularities for you, following a strategy. It's for the end game: S216+, and it only works fully once you've cleared EXALT6.
+
+> [!IMPORTANT]
+> It needs Tampermonkey or Steam: with the bookmark, it's slow and unreliable.
 
 ## Getting started
 
@@ -96,7 +99,8 @@ An If-jump step (an IF row in the list) jumps to its **Jump here** row when its 
 - Undo / Redo (Ctrl+Z / Ctrl+Y) are at the bottom, next to **Fixed time**: the time the phase spends waiting, IF jumps not followed.
 - Comments are just for you.
 
-**Save** in the actions window only keeps your changes in the strategy window. Click **Update Strategy** (or **Create Strategy**) there to save for good.
+> [!WARNING]
+> **Save** in the actions window only keeps your changes in the strategy window. Click **Update Strategy** (or **Create Strategy**) there to save for good.
 
 ### Testing a strategy
 
@@ -109,4 +113,6 @@ To compare two versions of a strategy:
 - Run each for 10 to 15 singularities: one singularity alone varies too much.
 - Keep the same ambrosia loadouts: two heats at the same singularity can differ by 15%.
 - Look at both quarks and golden quarks per hour, not only the time.
-- The table is emptied at the next start: Copy it first.
+
+> [!TIP]
+> The table is emptied at the next start: Copy it first.

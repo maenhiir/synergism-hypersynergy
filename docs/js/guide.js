@@ -1,6 +1,15 @@
 /* Search is progressive enhancement; the complete guide is pre-rendered HTML. */
 (() => {
   'use strict';
+  // The features page hides its categories under html.folding until they are folded (no full list for a frame
+  // first): lifted whatever happens here, so an error never leaves them hidden.
+  try {
+    setUp();
+  } finally {
+    document.documentElement.classList.remove('folding');
+  }
+
+  function setUp() {
   const search = document.getElementById('feature-search');
   const category = document.getElementById('feature-category');
   if (!search || !category) return;
@@ -142,4 +151,5 @@
   window.addEventListener('hashchange', revealAnchor);
   filter(false);
   revealAnchor();
+  }
 })();

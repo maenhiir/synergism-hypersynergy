@@ -36,15 +36,26 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .muted, .where, .setting-refs, .sources, .breadcrumb { color: var(--muted); }
 .where, .sources, .setting-refs { font-size: .875rem; }
 .sources { overflow-wrap: anywhere; }
-.category-list { columns: 2; column-gap: 40px; max-width: 850px; }
+.category-list { columns: 2; column-gap: 40px; max-width: 850px; list-style: none; }
+.page-wrapper .category-list { margin-left: 30px; padding-left: 0; }
 /* Padding, not margin: a column break drops the second column's first top margin and misaligns the columns. */
 .category-list li { break-inside: avoid; margin: 0; padding: 2.5px 0; }
+/* Category icons (game pictures): before the title, as far from it as the fold toggle's gap, so nothing moves when
+   guide.js turns the heading into a toggle. */
+.category-icon { vertical-align: middle; margin: -4px 10px 0 0; }
+.page-wrapper h1 .category-icon { margin-right: 12px; }
+.category-list .category-icon { margin: -3px 8px 0 0; }
+.fold-toggle .category-icon { align-self: center; margin: 0; }
 .feature-category h2 { border-bottom: 1px solid var(--category-color); color: var(--category-color); padding-bottom: 9px; }
 .fold-toggle, .fold-toggle:hover { display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .fold-icon { flex: none; width: 0; height: 0; border-style: solid; border-width: .3em 0 .3em .45em; border-color: transparent transparent transparent currentColor; transform: translateY(-.08em) rotate(90deg); transition: transform .15s; }
 .folded .fold-icon { transform: translateY(-.08em); }
 .category-count { color: var(--muted); font-size: .6em; font-weight: normal; }
 .feature-category.folded > :not(h2) { display: none; }
+/* Until guide.js has folded the categories (html.folding, set in the page's head): contents hidden, and the
+   triangle's room kept so the titles don't move when it arrives. */
+.folding .feature-category > :not(h2) { display: none; }
+.folding .feature-category h2 { padding-left: calc(.45em + 10px); }
 .fold-all { display: inline-grid; }
 .fold-all > span { grid-area: 1 / 1; }
 .fold-all > span:last-child, .fold-all.unfold > span:first-child { visibility: hidden; }
@@ -60,6 +71,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .limits { margin: 15px 0 12px 30px; border-left: 2px solid #79704a; padding: 6px 12px; color: #cbc5b9; font-size: .92em; }
 .limits ul { margin-left: 18px; margin-bottom: 6px; }
 .feature details .limits { margin-left: 0; }
+/* Screenshots (guides' images and catalogue entries' "images"): shrunk to the column, a click opens them full size. */
+.shot { margin: 14px 0 18px 30px; }
+.shot a { display: inline-block; max-width: 100%; }
+.shot img { display: block; max-width: 100%; height: auto; border: 1px solid #403c4c; border-radius: 4px; }
+.shot figcaption { margin-top: 6px; color: var(--muted); font-size: .85rem; }
+.feature details .shot { margin-left: 0; }
+/* Guides' alerts ("> [!NOTE]"…), in GitHub's alert colours. */
+.callout { --callout: #4493f8; max-width: 112ch; margin: 16px 0 18px 30px; border-left: 3px solid var(--callout); border-radius: 0 4px 4px 0; padding: 8px 14px; background: #1f1e26; }
+.callout-tip { --callout: #3fb950; }
+.callout-important { --callout: #ab7df8; }
+.callout-warning { --callout: #d29922; }
+.callout-caution { --callout: #f85149; }
+.page-wrapper .callout p { margin: 4px 0; }
+.page-wrapper .callout .callout-title { display: flex; align-items: center; gap: 8px; color: var(--callout); font-weight: bold; }
+.callout svg { flex: none; }
+.page-wrapper .callout ul, .page-wrapper .callout ol { margin: 4px 0 4px 20px; }
 .feature-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 24px 0 12px 30px; }
 .feature-controls label { display: flex; flex-direction: column; gap: 5px; font-size: .85rem; color: #c1bdcc; }
 .changelog-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 24px 0 12px 30px; }
@@ -117,7 +144,7 @@ footer { margin: 45px 0 18px 30px; padding-top: 15px; border-top: 1px solid #353
   #tabs a { min-width: 0; padding: 6px 8px; font-size: .8rem; }
   #page-container { padding: 16px 12px; }
   .page-wrapper { padding: 0; }
-  .page-wrapper p, .page-wrapper h2, .page-wrapper h3, .page-wrapper h4, .feature details, .limits, footer, .table-scroll, .feature-controls, .changelog-controls, .changelog-sources, .changelog-merge { margin-left: 0; }
+  .page-wrapper p, .page-wrapper h2, .page-wrapper h3, .page-wrapper h4, .feature details, .limits, .callout, .shot, footer, .table-scroll, .feature-controls, .changelog-controls, .changelog-sources, .changelog-merge { margin-left: 0; }
   .changelog-entry h3 { margin-left: 0; }
   .page-wrapper ul, .page-wrapper ol { margin-left: 12px; }
   .category-list { columns: 1; }
@@ -150,6 +177,6 @@ footer { margin: 45px 0 18px 30px; padding-top: 15px; border-top: 1px solid #353
   #page-container { overflow: visible; }
   .page-wrapper, .permalink, .permalink:visited, a, a:visited, code, .where, .sources, .limits { color: black; }
   .feature { break-inside: avoid; }
-  .feature-category.folded > :not(h2):not([hidden]) { display: block; }
+  .feature-category.folded > :not(h2):not([hidden]), .folding .feature-category > :not(h2):not([hidden]) { display: block; }
   .fold-icon { display: none; }
 }

@@ -60,6 +60,77 @@ def ul(items: list[str]) -> str:
     return "<ul>" + "".join(f"<li>{esc(x)}</li>" for x in items) + "</ul>"
 
 
+IMAGE_TYPES = (".png", ".webp", ".gif")
+
+
+def image_size(path: Path) -> tuple[int, int]:
+    """Pixel size from a PNG, GIF or WebP header (no image library)."""
+    data = path.read_bytes()[:32]
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return int.from_bytes(data[6:8], "little"), int.from_bytes(data[8:10], "little")
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        chunk = data[12:16]
+        if chunk == b"VP8 ":
+            return int.from_bytes(data[26:28], "little") & 0x3FFF, int.from_bytes(data[28:30], "little") & 0x3FFF
+        if chunk == b"VP8L":
+            bits = int.from_bytes(data[21:25], "little")
+            return (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1
+        if chunk == b"VP8X":
+            return int.from_bytes(data[24:27], "little") + 1, int.from_bytes(data[27:30], "little") + 1
+    raise ValueError(f"{path.relative_to(ROOT).as_posix()}: not a PNG, GIF or WebP image")
+
+
+def site_image(path: Path, where: str) -> tuple[str, int, int]:
+    """An image file under docs/res/: its path from docs/ and its display size. A name ending in @<n>x (e.g.
+    strategy-window@2x.webp, a screenshot taken at 200% zoom) is shown at its pixel size divided by n."""
+    path = path.resolve()
+    if not path.is_relative_to((DOCS / "res").resolve()) or path.suffix.lower() not in IMAGE_TYPES:
+        raise ValueError(f"{where}: an image must be a {', '.join(IMAGE_TYPES)} file under docs/res/")
+    if not path.is_file():
+        raise ValueError(f"{where}: missing image {path.relative_to(ROOT).as_posix()}")
+    width, height = image_size(path)
+    density = re.search(r"@(\d+(?:\.\d+)?)x$", path.stem)
+    if density:
+        width, height = round(width / float(density[1])), round(height / float(density[1]))
+    return path.relative_to(DOCS.resolve()).as_posix(), width, height
+
+
+def figure_html(prefix: str, image: tuple[str, int, int], alt: str, caption: str = "") -> str:
+    """A screenshot: lazy-loaded, its box sized before it loads (no layout shift), a click opens it full size."""
+    src, width, height = image
+    href = esc(prefix + quote(src, safe="/@"))
+    return (f'<figure class="shot"><a href="{href}" target="_blank" rel="noopener">'
+            f'<img src="{href}" width="{width}" height="{height}" alt="{esc(alt)}" loading="lazy" decoding="async"></a>'
+            + (f"<figcaption>{esc(caption)}</figcaption>" if caption else "") + "</figure>")
+
+
+def feature_images(f: dict) -> list[tuple[dict, tuple[str, int, int]]]:
+    """A catalogue entry's "images": [{"src": "res/…" (from docs/), "alt", "caption" (optional)}]."""
+    out = []
+    for n, image in enumerate(f.get("images", []), 1):
+        where = f'{f["id"]}: image {n}'
+        if not isinstance(image, dict) or not image.get("src") or not image.get("alt"):
+            raise ValueError(f"{where}: needs a src (from docs/) and an alt text")
+        out.append((image, site_image(DOCS / image["src"], where)))
+    return out
+
+
+def category_icon(category: dict, prefix: str, size: int) -> str:
+    """The category's game picture (catalogue "icon", under docs/res/), decorative: its title follows."""
+    if not category.get("icon"):
+        return ""
+    return (f'<img class="category-icon" src="{prefix}res/{esc(category["icon"])}" width="{size}" height="{size}" alt="">')
+
+
+def category_list(prefix: str, wiki_prefix: str) -> str:
+    """Home and wiki index: every category, its icon, its wiki page and feature count."""
+    return '<ul class="category-list">' + "".join(
+        f'<li>{category_icon(c, prefix, 20)}<a href="{wiki_prefix}{c["id"]}.html">{esc(c["title"])}</a> '
+        f'<span class="muted">({len(c["features"])})</span></li>' for c in CATEGORIES) + '</ul>'
+
+
 def own_sources(category: dict, f: dict) -> list[str]:
     """An entry's sources beyond its category's, which its page lists once under the intro."""
     return [p for p in dict.fromkeys(f.get("sources", [])) if p not in category["sources"]]
@@ -83,6 +154,9 @@ def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str
             for k in f["settings"]
         ) + "</p>"
     body = f'<p class="where"><strong>Where:</strong> {esc(f["where"])}</p>{ul(f["details"])}'
+    # The features page is docs/features.html, a wiki page docs/wiki/<category>.html.
+    body += "".join(figure_html("" if compact else "../", site, image["alt"], image.get("caption", ""))
+                    for image, site in feature_images(f))
     if f.get("limits"):
         body += '<div class="limits"><strong>Availability &amp; limits</strong>' + ul(f["limits"]) + "</div>"
     body += settings + sources_html("Source", own_sources(category, f))
@@ -96,7 +170,10 @@ def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str
 def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
          source: str = "docs/data/feature-catalogue.json",
          scripts: tuple[str, ...] = (),
+         folding: bool = False,
          description: str = "Hypersynergism: current feature guide, installation and wiki for the Synergism quality-of-life mod.") -> None:
+    """folding: the features page's categories stay hidden until guide.js has folded them, so the full list never
+    shows for a frame first. guide.js lifts it when done, or the script tag's onerror or a timeout if it never runs."""
     prefix = "../" * depth
     tabs = [("home", "Home", "index.html", "orange"),
             ("features", "Features", "features.html", "green"),
@@ -121,6 +198,10 @@ def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
         for icon, value, label, color in counters
     )
     extra_scripts = "".join(f'\n  <script src="{prefix}js/{esc(script)}" defer></script>' for script in scripts)
+    unfold = "document.documentElement.classList.remove('folding')"
+    folding_script = (f"\n  <script>document.documentElement.classList.add('folding'); setTimeout(() => {unfold}, 5000);</script>"
+                      if folding else "")
+    guide_onerror = f' onerror="{unfold}"' if folding else ""
     add(path, f'''<!DOCTYPE html>
 <!-- Generated by scripts/tools/build-docs.py. Edit {source}. -->
 <html lang="en">
@@ -132,8 +213,8 @@ def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
   <title>{esc(title)} · Hypersynergism</title>
   <link rel="icon" href="{prefix}res/coin.png" type="image/png">
   <link rel="stylesheet" href="{prefix}css/original.css">
-  <link rel="stylesheet" href="{prefix}css/guide.css">
-  <script src="{prefix}js/guide.js" defer></script>{extra_scripts}
+  <link rel="stylesheet" href="{prefix}css/guide.css">{folding_script}
+  <script src="{prefix}js/guide.js" defer{guide_onerror}></script>{extra_scripts}
 </head>
 <body>
 <a class="skip-link" href="#content">Skip to content</a>
@@ -156,9 +237,12 @@ def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
 </html>''')
 
 
-def feature_md(category: dict, f: dict, *, setting_href=lambda k: f"Settings-Reference#{k.lower()}") -> str:
+def feature_md(category: dict, f: dict, *, setting_href=lambda k: f"Settings-Reference#{k.lower()}",
+               image_prefix: str = SITE) -> str:
+    """image_prefix: what an image's path from docs/ follows (the website for the GitHub Wiki, "" in docs/FEATURES.md)."""
     parts = [f'### {f["title"]}', f["summary"], f'**Where:** {f["where"]}',
              "\n".join(f"- {x}" for x in f["details"])]
+    parts += [f'![{image["alt"]}]({image_prefix}{quote(src, safe="/@")})' for image, (src, _, _) in feature_images(f)]
     if f.get("limits"):
         parts += ["**Availability and limits**", "\n".join(f"- {x}" for x in f["limits"])]
     if f.get("settings"):
@@ -203,12 +287,35 @@ def inline_md(text: str) -> str:
     return "".join(out)
 
 
+# GitHub's alert types ("> [!NOTE]" …), with the icon the site shows for each (16×16, drawn in the alert's colour).
+_ICON_MARK = '<path d="M8 4.5v4.2" stroke-linecap="round"/><circle cx="8" cy="11.2" r=".9" fill="currentColor" stroke="none"/>'
+CALLOUTS = {
+    "NOTE": ("Note", '<circle cx="8" cy="8" r="6.5"/><path d="M8 7.2v4.3" stroke-linecap="round"/>'
+                     '<circle cx="8" cy="4.8" r=".9" fill="currentColor" stroke="none"/>'),
+    "TIP": ("Tip", '<path d="M8 1.5a4.5 4.5 0 0 0-2.7 8.1c.5.4.7.9.7 1.4v.5h4V11c0-.5.2-1 .7-1.4A4.5 4.5 0 0 0 8 1.5z"/>'
+                   '<path d="M6.2 14.3h3.6" stroke-linecap="round"/>'),
+    "IMPORTANT": ("Important", '<path d="M2 2.5h12v8.5H8.5l-3.5 3v-3H2z" stroke-linejoin="round"/>'
+                               '<path d="M8 4.6v3.3" stroke-linecap="round"/><circle cx="8" cy="9.4" r=".8" fill="currentColor" stroke="none"/>'),
+    "WARNING": ("Warning", '<path d="M8 1.8 15 14H1z" stroke-linejoin="round"/>' + _ICON_MARK),
+    "CAUTION": ("Caution", '<path d="M5.2 1.5h5.6l3.7 3.7v5.6l-3.7 3.7H5.2l-3.7-3.7V5.2z" stroke-linejoin="round"/>' + _ICON_MARK),
+}
+
+
+def callout_open(kind: str) -> str:
+    label, icon = CALLOUTS[kind]
+    return (f'<div class="callout callout-{kind.lower()}" role="note"><p class="callout-title">'
+            f'<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">{icon}</svg>'
+            f'{label}</p>')
+
+
 def guide_html(cid: str) -> str:
-    """The guides' Markdown subset: # to #### headings, paragraphs, flat - and 1. lists, --- rules, **bold**, `code`, [links](url).
+    """The guides' Markdown subset: # to #### headings, paragraphs, flat - and 1. lists, --- rules, **bold**, `code`, [links](url),
+    and GitHub's alerts ("> [!NOTE]", TIP, IMPORTANT, WARNING, CAUTION, then "> " lines holding paragraphs and flat lists).
     Anything else is refused, so a guide never renders differently on the site and on GitHub."""
     out: list[str] = []
     para: list[str] = []
     kind = ""
+    callout = False
 
     def end_para() -> None:
         if para:
@@ -221,25 +328,13 @@ def guide_html(cid: str) -> str:
             out.append(f"</{kind}>")
             kind = ""
 
-    for n, line in enumerate(GUIDES[cid].split("\n"), 1):
-        heading = re.match(r"(#{1,4}) (.+)$", line)
+    def text_line(line: str) -> None:
+        """A list item or a paragraph line, in the page or in an alert."""
+        nonlocal kind
+        if "![" in line:
+            raise ValueError(f'{where}: an image goes alone on its line, outside lists and alerts, with a description: ![description](path "optional caption")')
         item = re.match(r"(-|\d+\.) (.+)$", line)
-        if re.match(r"\s+\S|[>|]|[*+] |```|\d+\) |#{5}", line):
-            raise ValueError(f"Guide {cid}.md:{n}: Markdown the generator doesn't support")
-        if not line.strip():
-            end_para()
-            end_list()
-        elif line == "---":
-            if para:
-                raise ValueError(f"Guide {cid}.md:{n}: --- needs a blank line above (else it underlines a heading)")
-            end_list()
-            out.append("<hr>")
-        elif heading:
-            end_para()
-            end_list()
-            level, text = len(heading[1]), heading[2].strip()
-            out.append(f'<h{level} id="{esc(slug(text))}">{inline_md(text)}</h{level}>')
-        elif item:
+        if item:
             end_para()
             new_kind = "ul" if item[1] == "-" else "ol"
             if kind != new_kind:
@@ -250,8 +345,66 @@ def guide_html(cid: str) -> str:
         else:
             end_list()
             para.append(line.strip())
+
+    for n, line in enumerate(GUIDES[cid].split("\n"), 1):
+        where = f"Guide {cid}.md:{n}"
+        if callout:
+            if line.startswith(">"):
+                inner = line[2:] if line.startswith("> ") else line[1:]
+                if not inner.strip():
+                    end_para()
+                    end_list()
+                elif re.match(r"\s|[>|#]|[*+] |```|\d+\) |---", inner):
+                    raise ValueError(f"{where}: inside an alert, only paragraphs and flat - or 1. lists")
+                else:
+                    text_line(inner)
+                continue
+            if line.strip():
+                # Markdown would continue the alert's paragraph with this line.
+                raise ValueError(f"{where}: an alert needs a blank line after it")
+            end_para()
+            end_list()
+            out.append("</div>")
+            callout = False
+            continue
+        alert = re.match(r"> \[!([A-Z]+)\]$", line)
+        if alert:
+            if alert[1] not in CALLOUTS:
+                raise ValueError(f"{where}: unknown alert {alert[1]} (one of {', '.join(CALLOUTS)})")
+            end_para()
+            end_list()
+            out.append(callout_open(alert[1]))
+            callout = True
+            continue
+        # An image alone on its line; its path is relative to the guide, as GitHub reads it.
+        image = re.match(r'!\[([^\]]+)\]\(([^)\s"]+)(?: "([^"]+)")?\)$', line)
+        if image:
+            end_para()
+            end_list()
+            out.append(figure_html("../", site_image(DOCS / "data/guides" / image[2], where), image[1], image[3] or ""))
+            continue
+        heading = re.match(r"(#{1,4}) (.+)$", line)
+        if re.match(r"\s+\S|[>|]|[*+] |```|\d+\) |#{5}", line):
+            raise ValueError(f"{where}: Markdown the generator doesn't support")
+        if not line.strip():
+            end_para()
+            end_list()
+        elif line == "---":
+            if para:
+                raise ValueError(f"{where}: --- needs a blank line above (else it underlines a heading)")
+            end_list()
+            out.append("<hr>")
+        elif heading:
+            end_para()
+            end_list()
+            level, text = len(heading[1]), heading[2].strip()
+            out.append(f'<h{level} id="{esc(slug(text))}">{inline_md(text)}</h{level}>')
+        else:
+            text_line(line)
     end_para()
     end_list()
+    if callout:
+        out.append("</div>")
     return "\n".join(out)
 
 
@@ -274,10 +427,13 @@ def validate_catalogue() -> None:
             for required in ("id", "title", "summary", "where", "details"):
                 if not f.get(required):
                     raise ValueError(f'{f.get("id")}: missing {required}')
+            feature_images(f)
             for key in f.get("settings", []):
                 if key not in SETTINGS:
                     raise ValueError(f'{f["id"]}: unknown setting {key}')
                 mapped.add(key)
+        if c.get("icon") and not (DOCS / "res" / c["icon"]).is_file():
+            raise ValueError(f'{c["id"]}: missing icon docs/res/{c["icon"]}')
         for item in [c] + c["features"]:
             for p in item.get("sources", []):
                 if not (ROOT / p).is_file():
@@ -656,10 +812,7 @@ def build() -> None:
     feature_count = len(FEATURES)
     intro = (f'<p>A quality-of-life mod for <a href="https://synergism.cc/">Synergism</a>, '
              f'with information, shortcuts, interface customization and optional automation.</p>')
-    category_list = '<ul class="category-list">' + "".join(
-        f'<li><a href="wiki/{c["id"]}.html">{esc(c["title"])}</a> <span class="muted">({len(c["features"])})</span></li>'
-        for c in CATEGORIES) + '</ul>'
-    home = f'''<h1>Hypersynergism</h1>{intro}
+    home =f'''<h1>Hypersynergism</h1>{intro}
 <h2>Quick links</h2><ul>
 <li><a href="features.html">All {feature_count} documented features</a></li>
 <li><a href="wiki/index.html">Player wiki &amp; detailed guides</a></li>
@@ -668,7 +821,7 @@ def build() -> None:
 <li><a href="{REPO}/issues">Help &amp; bug reports</a></li></ul>
 <h2>About the mod</h2><p>Hypersynergism adds information and practical controls to the game: Ambrosia optimization, forge and shop distribution, header editing, remembered interface preferences, save tools and more.</p>
 <p>Most features are optional. AutoSing is separately enabled and automates progression; it goes beyond the original mod's strictly QoL scope.</p>
-<h2>Explore the features</h2>{category_list}
+<h2>Explore the features</h2>{category_list("", "wiki/")}
 <h2>New to Hypersynergism?</h2><ol>
 <li>Follow the <a href="wiki/getting-started.html">installation guide</a>.</li>
 <li>Open the mod icon to explore settings and Tools.</li>
@@ -699,20 +852,20 @@ def build() -> None:
 <p id="no-results" hidden>No matching features. Try a shorter search or choose another category.</p>'''
     sections = "".join(
         f'<section class="feature-category" data-category="{c["id"]}" aria-labelledby="heading-{c["id"]}">'
-        f'<h2 id="heading-{c["id"]}" style="--category-color:{c["color"]}">{esc(c["title"])}</h2>'
+        f'<h2 id="heading-{c["id"]}" style="--category-color:{c["color"]}">{category_icon(c, "", 24)}{esc(c["title"])}</h2>'
         f'<p>{esc(c["intro"])}</p>' + guide_link(c, f'wiki/{c["id"]}-guide.html')
         + "".join(feature_html(c, f, compact=True) for f in c["features"]) + '</section>'
         for c in CATEGORIES)
     page("docs/features.html", "All features", "features",
          f'<h1>Mod features</h1><p>{feature_count} features across {len(CATEGORIES)} categories. Search includes descriptions, usage and limits. Open a category to see its features, and an entry for its details.</p>'
          '<noscript><p>Search needs JavaScript; all features and their details remain available below.</p></noscript>' + search + sections,
-         description=f"All {feature_count} Hypersynergism features, searchable: what each does, where to find it and its limits.")
+         folding=True, description=f"All {feature_count} Hypersynergism features, searchable: what each does, where to find it and its limits.")
 
     wiki_intro = f'<h1>Hypersynergism wiki</h1><p>Player guides for the maintained mod: what each feature does, where to find it, and its availability and limits.</p>'
     guides_html = ('<h2>Guides</h2><ul>' + "".join(
         f'<li><a href="{cid}-guide.html">{esc(guide_title(cid))}</a></li>' for cid in GUIDES) + '</ul>') if GUIDES else ""
     guides_md = ["## Guides", "\n".join(f"- [{guide_title(cid)}]({guide_wiki_name(cid)})" for cid in GUIDES)] if GUIDES else []
-    page("docs/wiki/index.html", "Wiki", "wiki", wiki_intro + category_list.replace('href="wiki/', 'href="') + guides_html
+    page("docs/wiki/index.html", "Wiki", "wiki", wiki_intro + category_list("../", "") + guides_html
          + '<h2>Reference</h2><ul><li><a href="settings.html">Every setting and saved preference</a></li>'
          '<li><a href="calculations.html">Calculation picker reference</a></li>'
          '<li><a href="../FEATURES.md">Download the complete feature inventory (Markdown)</a></li></ul>'
@@ -741,11 +894,11 @@ def build() -> None:
         add(f'docs/wiki-source/{wiki_name(c)}.md', "\n\n".join(md))
         # The standalone inventory links to the website: the GitHub Wiki only points to it.
         inventory += [f'## {c["title"]}', c["intro"]] + sources_md("Sources for this category", c["sources"]) + guide_link_md(c, f'{SITE}wiki/{c["id"]}-guide.html') + [
-            feature_md(c, f, setting_href=lambda k: f"{SITE}wiki/settings.html#{quote(k)}") for f in c["features"]]
+            feature_md(c, f, setting_href=lambda k: f"{SITE}wiki/settings.html#{quote(k)}", image_prefix="") for f in c["features"]]
         toc = '<ul class="wiki-toc">' + "".join(f'<li><a href="#{f["id"]}">{esc(f["title"])}</a></li>' for f in c["features"]) + '</ul>'
         page(f'docs/wiki/{c["id"]}.html', c["title"], "wiki",
              f'<p class="breadcrumb"><a href="index.html">Wiki</a> / {esc(c["title"])}</p>'
-             f'<h1>{esc(c["title"])}</h1><p>{esc(c["intro"])}</p>{sources_html("Sources for this category", c["sources"])}'
+             f'<h1>{category_icon(c, "../", 32)}{esc(c["title"])}</h1><p>{esc(c["intro"])}</p>{sources_html("Sources for this category", c["sources"])}'
              f'{guide_link(c, c["id"] + "-guide.html")}{toc}'
              + "".join(feature_html(c, f) for f in c["features"]), depth=1, description=category_description(c))
     add("docs/wiki-source/Mod-Features.md", "\n\n".join(native_index))
@@ -763,7 +916,7 @@ def build() -> None:
     page("docs/about.html", "About", "about", '''<h1>About Hypersynergism</h1>
 <p>A community mod for <a href="https://synergism.cc/">Synergism</a>. Originally created by <a href="https://github.com/ahvonenj">ahvonenj</a>, now maintained by <a href="https://github.com/Ferlieloi">Ferlieloi</a> (XxmolkxX), <a href="https://github.com/maenhiir">maenhiir</a> (Shewchou) and contributors.</p>
 <h2>The original style</h2><p>This guide adapts the <a href="https://ahvonenj.github.io/synergism-hypersynergy/">original Hypersynergism website</a>: the dark background, resource icons, compact colored tabs and straightforward text layout.</p>
-<p>The original website CSS is retained with responsive and accessibility additions. The game-inspired images come from the original site's resources; Synergism artwork belongs to its respective creators. Neither the mod nor this guide is an official game website.</p>
+<p>The original website CSS is retained with responsive and accessibility additions. The game-inspired images come from the original site's resources and from the game's repository (MIT license, © Platonic and Khafra); Synergism artwork belongs to its respective creators. Neither the mod nor this guide is an official game website.</p>
 <h2>Privacy</h2><p>This documentation site uses no analytics, cookies, account system or game-save uploads. Search runs in your browser. Following external links uses those services.</p>
 <h2>License &amp; acknowledgements</h2><p>The repository's <a href="https://github.com/Ferlieloi/synergism-hypersynergy/blob/master/LICENSE">MIT license</a> and upstream credits are retained. Documentation describes the audited source; availability can vary with progression, platform and game patches.</p>''',
          description="Who makes Hypersynergism, where the website's style comes from, privacy and license.")
