@@ -2,7 +2,9 @@
 :root { color-scheme: dark; --muted: #aaa8b5; }
 body { background: #18171c; color: ghostwhite; font-family: Arial, sans-serif; }
 #wrapper { width: 100%; height: 100dvh; min-height: 0; }
-header { min-height: 156px; }
+/* No fixed height: the game's header keeps room for a third row the site doesn't have. */
+header { min-height: 0; }
+nav { margin-top: 10px; }
 #second-row { align-items: center; }
 #second-row-left-container { flex-basis: 50%; }
 .second-row-subcontainer { width: auto; }
@@ -105,7 +107,7 @@ tbody tr:target { background: #343028; }
 code { color: #d2bfef; overflow-wrap: anywhere; font-size: .86em; }
 footer { margin: 45px 0 18px 30px; padding-top: 15px; border-top: 1px solid #35323d; font-size: .8rem; color: var(--muted); }
 @media (max-width: 640px) {
-  header { min-height: 150px; }
+  nav { margin-top: 0; }
   #first-row { gap: 7px 12px; margin: 12px 8px; }
   .unit0 { font-size: 10pt; } .unit1 { font-size: 8pt; }
   #second-row-left-container { flex-basis: auto; padding: 0 12px; }
