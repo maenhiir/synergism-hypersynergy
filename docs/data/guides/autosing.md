@@ -7,6 +7,8 @@ Auto-Sing plays singularities for you, following a strategy. It's for the end ga
 
 ## Getting started
 
+![The mod panel's Settings, Auto-Sing subtab: singularity to farm, strategy, ambrosia loadouts](../../res/guides/autosing-settings@2x.webp)
+
 1. Open the mod panel (the mod's icon, top left), then Settings → **Auto-Sing**.
 2. **Strategy:** pick one. The default strategies are a place to start; some of them are meant for the very end of the game. To adapt one or make your own, see [Making or editing a strategy](#making-or-editing-a-strategy).
 3. **Ambrosia loadouts:** for each role (pre-AOAG cubes, post-AOAG cubes, quarks, obtainium, offerings, luck), pick the game slot that holds that loadout. The Ambrosia Heater (Tools tab) finds the best ones for your save. Each loadout switch resets the ambrosia bars' progress. If you don't want that, tick **Don't switch ambrosia loadouts**: Auto-Sing then never switches.
@@ -15,6 +17,8 @@ Auto-Sing plays singularities for you, following a strategy. It's for the end ga
 The Auto-Sing window shows the time per singularity, the quarks and golden quarks gained per second, and how much of your quarks came from the Ants to Quark Corner. Its buttons: ⏸️ pause, 🔄 restart the singularity, 🟠 stop at the end of this singularity, 🔴 stop now, 📋 step timings (with **Record step timings** on), 📊 details.
 
 ## Which singularity to farm
+
+![The Auto-Sing window after 10 singularities: times, quarks and golden quarks per second, phase statistics](../../res/guides/autosing-window@2x.webp)
 
 - Start low: a singularity should take 15 to 20 seconds at most. That can be 30 singularities below your highest, and that's normal.
 - Then go up one singularity at a time, as long as golden quarks per second keep going up.
@@ -54,6 +58,8 @@ A strategy is a list of **phases**. Each phase covers a part of the singularity,
 
 ### The strategy window
 
+![The strategy window of a default strategy: five phases from start to end, and the AOAG phase before the last one](../../res/guides/strategy-window@2x.webp)
+
 In Settings → Auto-Sing:
 - **➕ Create** opens a blank strategy (starting from a default is usually easier).
 - **✏️ Edit** opens the selected one. Default strategies can't be changed: Edit opens a copy that you save under a new name.
@@ -68,6 +74,8 @@ In the window:
 - **Create Strategy** / **Update Strategy** saves. A strategy must go all the way to "end".
 
 ### The actions window (✎)
+
+![The actions window: the step fields at the top, the phase's steps below](../../res/guides/actions-window@2x.webp)
 
 Steps run from top to bottom. Pick a **Special Action**, fill in the fields shown, then click **Add** (or press Enter). New steps go where **Add Here** is; drag it, or double-click a step, to add elsewhere.
 
@@ -84,6 +92,8 @@ The other actions are grouped in the dropdown (Exit and Ascend, Game actions, Ch
 - **Store C15**: keeps C15's current score for an IF step to compare against.
 
 #### If-jump steps
+
+![An If-jump step loaded in the fields: it jumps back to step 4 while C15 is below 1e110, at most 5 times](../../res/guides/if-jump@2x.webp)
 
 An If-jump step (an IF row in the list) jumps to its **Jump here** row when its condition holds, else the steps continue below it.
 - **Challenges** mode: compares a challenge's completions (If Challenge) with Value, using > or <.
@@ -103,6 +113,8 @@ An If-jump step (an IF row in the list) jumps to its **Jump here** row when its 
 > **Save** in the actions window only keeps your changes in the strategy window. Click **Update Strategy** (or **Create Strategy**) there to save for good.
 
 ### Testing a strategy
+
+![Step timings after 10 singularities, sorted by time per singularity](../../res/guides/step-timings@2x.webp)
 
 Turn on **Record step timings** in Settings → Auto-Sing, then start Auto-Sing. 📋 in the Auto-Sing window shows where a singularity's time goes, step by step:
 - **Runs**: times per singularity. **ms**: time per singularity. **%**: its part of a singularity. **Wait**: the part of ms spent in the step's Wait before.

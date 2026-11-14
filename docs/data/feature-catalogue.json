@@ -56,6 +56,12 @@
           ],
           "limits": [
             "Windows only. Re-patch when requested; reloading the mod alone does not update an already patched Steam copy."
+          ],
+          "images": [
+            {
+              "src": "res/features/steam-loader@2x.webp",
+              "alt": "The Steam loader, step 2: the Live channel and its master build"
+            }
           ]
         },
         {
@@ -121,6 +127,12 @@
             "Settings are grouped into pages; tooltips explain their individual controls.",
             "The mod's own notifications stack in one column at the top centre: hover one to keep it, click it to dismiss it.",
             "The Tools tab's Mod links open the mod's website, its GitHub repository and its Discord thread."
+          ],
+          "images": [
+            {
+              "src": "res/features/mod-panel@2x.webp",
+              "alt": "The mod panel's Settings tab, QoL subtab"
+            }
           ]
         },
         {
@@ -202,6 +214,12 @@
           ],
           "settings": [
             "singularitySearch"
+          ],
+          "images": [
+            {
+              "src": "res/features/gq-search@2x.webp",
+              "alt": "Golden Quark upgrades searched for \"ambrosia\": matches lit in the grid, their cards on the left"
+            }
           ]
         },
         {
@@ -497,6 +515,12 @@
           "settings": [
             "headerEditButton",
             "editGameHeader"
+          ],
+          "images": [
+            {
+              "src": "res/features/header-edit@2x.webp",
+              "alt": "The header in edit mode, with the edit panel and the mod's header settings under it"
+            }
           ]
         },
         {
@@ -912,6 +936,12 @@
             "Compare the effect, resource cost and required Blueberries for each result.",
             "The 3–7D Cube and Octeract rows are intended for post-AOAG; pre-AOAG cube trees have their own Hyperflux section.",
             "Coins in C15 and the four Purple rows are in the same Common Loadouts section."
+          ],
+          "images": [
+            {
+              "src": "res/features/heater-results@2x.webp",
+              "alt": "The Ambrosia Heater results window after a heat: common, Obtainium and Offering, p4x4 and hybrid loadouts"
+            }
           ]
         },
         {
@@ -1150,6 +1180,12 @@
             "enableHepteractDistributor",
             "hepteractDistributorRatios",
             "hepteractDistributorOpen"
+          ],
+          "images": [
+            {
+              "src": "res/features/hepteract-distributor@2x.webp",
+              "alt": "The Hepteract Distributor panel with a ratio per hepteract type"
+            }
           ]
         },
         {

@@ -97,11 +97,21 @@ def site_image(path: Path, where: str) -> tuple[str, int, int]:
     return path.relative_to(DOCS.resolve()).as_posix(), width, height
 
 
+# A screenshot at most this wide (as shown) sits right of the text after it; a wider one takes the column's width.
+SIDE_IMAGE_MAX_WIDTH = 850
+
+
+def is_side_image(image: tuple[str, int, int]) -> bool:
+    return image[1] <= SIDE_IMAGE_MAX_WIDTH
+
+
 def figure_html(prefix: str, image: tuple[str, int, int], alt: str, caption: str = "") -> str:
-    """A screenshot: lazy-loaded, its box sized before it loads (no layout shift), a click opens it full size."""
+    """A screenshot: lazy-loaded, its box sized before it loads (no layout shift), a click opens it full size.
+    A narrow one (is_side_image) floats right of what follows it, at most half the column (guide.css, .shot-side)."""
     src, width, height = image
     href = esc(prefix + quote(src, safe="/@"))
-    return (f'<figure class="shot"><a href="{href}" target="_blank" rel="noopener">'
+    side = " shot-side" if is_side_image(image) else ""
+    return (f'<figure class="shot{side}"><a href="{href}" target="_blank" rel="noopener">'
             f'<img src="{href}" width="{width}" height="{height}" alt="{esc(alt)}" loading="lazy" decoding="async"></a>'
             + (f"<figcaption>{esc(caption)}</figcaption>" if caption else "") + "</figure>")
 
@@ -153,18 +163,36 @@ def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str
             f'<a href="{("wiki/" if compact else "")}settings.html#{esc(k)}"><code>{esc(k)}</code></a>'
             for k in f["settings"]
         ) + "</p>"
-    body = f'<p class="where"><strong>Where:</strong> {esc(f["where"])}</p>{ul(f["details"])}'
     # The features page is docs/features.html, a wiki page docs/wiki/<category>.html.
-    body += "".join(figure_html("" if compact else "../", site, image["alt"], image.get("caption", ""))
-                    for image, site in feature_images(f))
+    prefix = "" if compact else "../"
+    images = feature_images(f)
+    figures = {side: "".join(figure_html(prefix, site, image["alt"], image.get("caption", ""))
+                             for image, site in images if is_side_image(site) == side) for side in (True, False)}
+    # A narrow screenshot first, floating right of the entry's text; a wide one after the details.
+    body = (figures[True] + f'<p class="where"><strong>Where:</strong> {esc(f["where"])}</p>{ul(f["details"])}'
+            + figures[False])
     if f.get("limits"):
         body += '<div class="limits"><strong>Availability &amp; limits</strong>' + ul(f["limits"]) + "</div>"
     body += settings + sources_html("Source", own_sources(category, f))
+    thumb = ""
     if compact:
         body = f'<details><summary>How to use it &amp; limits</summary>{body}</details>'
-    return (f'<article class="feature" id="{esc(f["id"])}">'
+        if images:
+            thumb = thumbnail_html(prefix, images[0][1])
+    return (f'<article class="feature" id="{esc(f["id"])}">{thumb}'
             f'<h3><a class="permalink" href="#{esc(f["id"])}">{esc(f["title"])}</a></h3>'
             f'<p>{esc(f["summary"])}</p>{body}</article>')
+
+
+def thumbnail_html(prefix: str, image: tuple[str, int, int]) -> str:
+    """The features page's miniature of an entry's first image, right of its title and summary. A click unfolds the
+    entry's details, where the image is (guide.js); without JS it opens the image. Decorative: the image has its alt."""
+    src, width, height = image
+    scale = min(120 / width, 90 / height)
+    href = esc(prefix + quote(src, safe="/@"))
+    return (f'<a class="thumb" href="{href}" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">'
+            f'<img src="{href}" width="{round(width * scale)}" height="{round(height * scale)}" alt="" loading="lazy" '
+            f'decoding="async"></a>')
 
 
 def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,

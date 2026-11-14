@@ -140,6 +140,16 @@
     if (details) details.open = true;
     target.scrollIntoView({ block: 'start' });
   }
+  // A miniature unfolds its entry's details, where the image is (without JS it opens the image).
+  for (const thumb of document.querySelectorAll('.feature .thumb')) {
+    thumb.addEventListener('click', event => {
+      const details = thumb.closest('.feature').querySelector('details');
+      if (!details) return;
+      event.preventDefault();
+      details.open = true;
+      details.querySelector('.shot')?.scrollIntoView({ block: 'nearest' });
+    });
+  }
   search.addEventListener('input', () => filter());
   category.addEventListener('change', () => filter());
   reset.addEventListener('click', () => {

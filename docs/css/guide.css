@@ -78,6 +78,17 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .shot img { display: block; max-width: 100%; height: auto; border: 1px solid #403c4c; border-radius: 4px; }
 .shot figcaption { margin-top: 6px; color: var(--muted); font-size: .85rem; }
 .feature details .shot { margin-left: 0; }
+/* A narrow screenshot (build-docs.py, SIDE_IMAGE_MAX_WIDTH) floats right of the text after it, at most half the
+   column; headings start below it, and boxes beside it keep their background out of it. */
+.shot-side { float: right; clear: right; width: fit-content; max-width: min(50%, 600px); margin: 6px 0 16px 24px; }
+.feature details .shot-side { margin-left: 24px; }
+.page-wrapper :is(h2, h3, h4), .page-wrapper hr { clear: both; }
+.page-wrapper .feature h3 { clear: none; }
+.feature, .feature details, .callout, .limits { display: flow-root; }
+/* The features page's miniature of an entry's image, right of its title; a click unfolds the entry (guide.js). */
+.thumb { float: right; margin: 8px 0 6px 16px; line-height: 0; }
+.thumb img { border: 1px solid #403c4c; border-radius: 3px; opacity: .85; }
+.thumb:hover img { opacity: 1; border-color: #6a6480; }
 /* Guides' alerts ("> [!NOTE]"…), in GitHub's alert colours. */
 .callout { --callout: #4493f8; max-width: 112ch; margin: 16px 0 18px 30px; border-left: 3px solid var(--callout); border-radius: 0 4px 4px 0; padding: 8px 14px; background: #1f1e26; }
 .callout-tip { --callout: #3fb950; }
@@ -147,6 +158,7 @@ footer { margin: 45px 0 18px 30px; padding-top: 15px; border-top: 1px solid #353
   .page-wrapper { padding: 0; }
   .page-wrapper p, .page-wrapper h2, .page-wrapper h3, .page-wrapper h4, .feature details, .limits, .callout, .shot, footer, .table-scroll, .feature-controls, .changelog-controls, .changelog-sources, .changelog-merge { margin-left: 0; }
   .changelog-entry h3 { margin-left: 0; }
+  .shot-side, .feature details .shot-side { float: none; max-width: 100%; margin-left: 0; }
   .page-wrapper ul, .page-wrapper ol { margin-left: 12px; }
   .category-list { columns: 1; }
   .page-wrapper h1 { font-size: 1.7em; }
