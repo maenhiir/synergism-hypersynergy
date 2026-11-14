@@ -83,9 +83,9 @@
     },
     {
       "id": "interface",
-      "title": "Interface & remembered preferences",
+      "title": "Interface & navigation",
       "color": "cyan",
-      "intro": "Small interface choices are remembered locally, including changes made through the game's own tab controls.",
+      "intro": "The mod panel and quick menu, hidden tabs and remembered subtabs, search fields, and choices for the game's dialogs and notifications.",
       "sources": [
         "src/mod/class/hs-core/hs-ui.ts",
         "src/mod/class/hs-core/settings/hs-settings-ui.ts",
