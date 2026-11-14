@@ -36,7 +36,7 @@ it: [publishing instructions](docs/dev/publishing-guide.md).
 
 ### 🎮 On Steam (Windows only)
 
-Use the Hypersynergism Loader, a small Windows app that patches a copy of the game and launches it with the mod. Its installer is on the [releases page](https://github.com/Ferlieloi/synergism-hypersynergy/releases), under "Hypersynergism Loader". It needs the full [7-Zip](https://www.7-zip.org/) install. More in the [loader's README](synergism_modloader/README.md).
+Use the Hypersynergism Loader, a small Windows app that patches a copy of the game and launches it with the mod. Its installer is on the [releases page](https://github.com/Ferlieloi/synergism-hypersynergy/releases), under "Hypersynergism Loader". More in the [loader's README](synergism_modloader/README.md).
 
 The mod is downloaded at each launch, always in its latest version. The loader updates itself, and tells you when the game has to be patched again.
 
