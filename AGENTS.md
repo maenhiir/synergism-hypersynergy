@@ -69,6 +69,7 @@ Prefer the game's state (`HSGlobal.exposedPlayer`, GDS data) or signals it keeps
 - **Settings are data**: `hs-settings.json` + `HSSettingsDefinition`; a `settingAction` needs a handler; `settingControl` is for UI only. Persistence and startup actions: `docs/dev/code.md`. No double quote in a help text.
 - **Game icons**: reuse one through `HSIcons`, read from the game's element by its id (`docs/dev/sprite-icons.md`).
 - **Tooltips**: a browser `title` by default; `HSTooltip` for colours, a shorter delay or a chosen side (`docs/dev/code.md`).
+- **Migrations and old-version fallbacks** (old game, loader, patch or stored data) get an entry in `docs/dev/compat-code.md` with what lets them go; removing the code removes the entry.
 
 ### GDS (Game Data Sniffing): `hs-core/gds/` (`docs/features/gds.md`)
 - `HSGameData` reads the live player every 500 ms when patched, else captures the save. The live player is the same object at every read: never key a cache by it. `HSGameDataAPIPartial` is the actual API, `HSGameDataAPI` the game-formula calculations.
