@@ -34,7 +34,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .where, .sources, .setting-refs { font-size: .875rem; }
 .sources { overflow-wrap: anywhere; }
 .category-list { columns: 2; column-gap: 40px; max-width: 850px; }
-.category-list li { break-inside: avoid; }
+/* Padding, not margin: a column break drops the second column's first top margin and misaligns the columns. */
+.category-list li { break-inside: avoid; margin: 0; padding: 2.5px 0; }
 .feature-category h2 { border-bottom: 1px solid var(--category-color); color: var(--category-color); padding-bottom: 9px; }
 .fold-toggle, .fold-toggle:hover { display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; }
 .fold-icon { flex: none; width: 0; height: 0; border-style: solid; border-width: .3em 0 .3em .45em; border-color: transparent transparent transparent currentColor; transform: translateY(-.08em) rotate(90deg); transition: transform .15s; }
@@ -122,6 +123,20 @@ footer { margin: 45px 0 18px 30px; padding-top: 15px; border-top: 1px solid #353
   input[type="search"] { width: min(410px, 90vw); }
   .feature-controls label { max-width: 100%; }
   select { max-width: 90vw; }
+  /* The page scrolls as a whole: the header scrolls away and the browser's own scrolling (address bar, tap to top) applies. */
+  html { scroll-behavior: smooth; }
+  #wrapper { height: auto; min-height: 100dvh; overflow: visible; overflow-x: clip; }
+  #page-container { overflow: visible; }
+  /* The settings table: one block per setting, each value labelled. */
+  .settings-table thead { display: none; }
+  .settings-table, .settings-table caption, .settings-table tbody, .settings-table tr, .settings-table th, .settings-table td { display: block; }
+  .settings-table tr { border: 1px solid #403c4c; margin-bottom: 10px; }
+  .settings-table th, .settings-table td { border: 0; padding: 3px 10px; }
+  .settings-table th { padding-top: 8px; }
+  .settings-table td:last-child { padding-bottom: 8px; }
+  .settings-table td::before { content: attr(data-label) ": "; color: var(--muted); }
+  .settings-table td br { display: none; }
+  .settings-table .control-page:not(:empty)::before { content: " · "; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

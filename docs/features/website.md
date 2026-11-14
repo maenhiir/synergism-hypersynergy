@@ -28,8 +28,8 @@ How the player website is built and how it behaves. How to update and publish it
 
 ## Feature catalogue (`feature-catalogue.json`)
 - **Top level:** `repository` (every repository, release, issue and source link: source links follow `blob/master/`), `audited_commit` (shown only in `FEATURE-AUDIT.md`), `branch` (not read), `categories` (in display order).
-- **Category:** `id`, `title`, `color` (a CSS colour: the features page's category heading), `intro`, `sources` (repository paths, listed after each of its features' own), `features` (in display order).
-- **Feature:** `id`, `title`, `summary`, `where`, `details` (list) are required; `limits` (list), `settings` (setting keys), `sources` are optional.
+- **Category:** `id`, `title`, `color` (a CSS colour: the features page's category heading), `intro`, `sources` (repository paths, listed once under the intro of its wiki page, its Markdown page and its `FEATURES.md` section; not on the features page), `features` (in display order).
+- **Feature:** `id`, `title`, `summary`, `where`, `details` (list) are required; `limits` (list), `settings` (setting keys), `sources` are optional. An entry shows only its own `sources`, not its category's.
 - **The generator refuses:** a category or feature id used twice, a missing required field, an unknown setting key, a setting of `hs-settings.json` no feature lists, a source path that isn't a file in the checkout. A setting listed by two features links to the last one on the settings page.
 - **Ids name addresses; titles can change.** A category id names `wiki/<id>.html`, `Features-<id>`, its guide and the `?category=` filter; a feature id is its anchor on the features page, its wiki page and the settings page's links. The Markdown wiki anchors features by title instead.
 - **Plain text only**: every string is escaped on the site, so Markdown or HTML in a catalogue string shows as typed.
@@ -42,8 +42,10 @@ How the player website is built and how it behaves. How to update and publish it
 
 ## Every page
 - **Header:** five counters (features, categories, settings, "Live Channel" or "All Channels" on the changelog, "QoL + opt-in AutoSing"), "Hypersynergism Guide for v<version>" (colour-cycling), the maintainers line, six tabs: Home orange, Features green, Wiki cyan, Changelog plum, Github light blue, About white. The current tab is filled with its colour and a line of that colour runs under the tabs. Footer: source, credits, back to top.
+- **Each page has its own `<meta name="description">`** (search results, link previews): a line passed to `page()`, the general sentence on the home page; a wiki category page lists its category and as many feature titles as fit in 160 characters, so it never goes stale.
+- **Maintainers are named by their GitHub names** (Ferlieloi, maenhiir); the About page and the catalogue's "Live and Dev channels" entry add the other names players know (XxmolkxX, Shewchou).
 - **Every page works without JavaScript**: everything is shown, only search and folding need it.
-- **Narrow screens** (640 px and less): side margins drop, the category lists (home, wiki index) take one column. **Reduced motion** stops the version's colour cycle and every transition. **Printing** leaves out the header, the search forms and the footer.
+- **Narrow screens** (640 px and less): the page scrolls as a whole, the header with it (wider, only the content scrolls under a fixed header); side margins drop, the category lists (home, wiki index) take one column, the settings table shows one labelled block per setting. **Reduced motion** stops the version's colour cycle and every transition. **Printing** leaves out the header, the search forms and the footer.
 - **Keyboard:** a "Skip to content" link, a yellow outline on the focused control, the current tab marked `aria-current`; counts of shown entries are announced (`aria-live`).
 - **The About page promises** no analytics, cookies, account system or save uploads: whatever is added keeps it true.
 - **Filters are kept in the address** (`?q=`, `?category=` or `?channel=`) so a filtered page can be shared, except on a page opened as a file.
@@ -53,7 +55,7 @@ How the player website is built and how it behaves. How to update and publish it
 - **Github:** links to Live, its releases and issues, the Dev repository, ahvonenj's original repository and the game's source. **About:** maintainers, the original website's style, privacy, licence.
 
 ## Features page (`features.html`, `guide.js`)
-- **Each entry shows its title and summary**; "How to use it & limits" opens the rest: where, details, availability and limits, related settings (links to their row on the settings page), source files. The entry's title links to itself.
+- **Each entry shows its title and summary**; "How to use it & limits" opens the rest: where, details, availability and limits, related settings (links to their row on the settings page), its own source files if any. The entry's title links to itself.
 - **Search** matches every word typed against the whole text of an entry (details included); **Category** shows one category. A category with no match is hidden.
 - **Categories start folded.** The script turns each category title into a toggle (`<button aria-expanded>` inside the `<h2>`, a triangle on its left that turns in place) followed by the number of features in grey (the number of matches during a search). A folded category shows only its title. Not `<details>` in the generator: the heading would lose its heading role for screen readers, and the filter would have to open them anyway.
 - **Fold all / Unfold all** next to Reset acts on the categories shown; its label says what a click does and its width doesn't change with it.
@@ -66,7 +68,7 @@ How the player website is built and how it behaves. How to update and publish it
 ## Wiki pages (`docs/wiki/`)
 - **Index:** the categories, the guides, the references (settings, calculations, `FEATURES.md` as a file), how to report a bug. No link to the GitHub Wiki: it only points back here.
 - **Category page:** its intro, its guide, a table of contents, then every feature in full (no folding, nothing to open), with the same anchors as the features page.
-- **Settings:** one row per setting, in `hs-settings.json` order, anchored by its key: its `settingDescription` (not the help text), initial value (`settingValue`, else `enabled`), "Panel control" or "Hidden / inline or internal" with its control page, and its feature.
+- **Settings:** one row per setting, in `hs-settings.json` order, anchored by its key: its `settingDescription` (not the help text), initial value (`settingValue`, else `enabled`), "Panel control" or "Hidden / inline or internal" with its control page (named as the Settings tab shows it, from `hs-settings-control-pages.json`), and its feature.
 - **Calculations:** the calculation picker's entries (`toolingSupport: true`), sorted by name, with their function and whether they support reduction. Read by pattern from the TypeScript file: the build fails only if it finds none.
 - **`FEATURES.md`:** every category and feature in one Markdown file; its settings and guides link to the website (address built from the catalogue's `repository`). **`FEATURE-AUDIT.md`:** counts and each category's sources, under the original audit's fixed text.
 

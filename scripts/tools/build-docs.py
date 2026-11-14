@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 CATALOGUE = json.loads((DOCS / "data/feature-catalogue.json").read_text(encoding="utf-8"))
 SETTINGS = json.loads((ROOT / "src/mod/resource/json/hs-settings.json").read_text(encoding="utf-8"))
+# The Settings tab's page names, as the mod panel shows them.
+CONTROL_PAGES = json.loads((ROOT / "src/mod/resource/json/hs-settings-control-pages.json").read_text(encoding="utf-8"))
 VERSION = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 CATEGORIES = CATALOGUE["categories"]
 FEATURES = [f for c in CATEGORIES for f in c["features"]]
@@ -57,10 +59,22 @@ def ul(items: list[str]) -> str:
     return "<ul>" + "".join(f"<li>{esc(x)}</li>" for x in items) + "</ul>"
 
 
+def own_sources(category: dict, f: dict) -> list[str]:
+    """An entry's sources beyond its category's, which its page lists once under the intro."""
+    return [p for p in dict.fromkeys(f.get("sources", [])) if p not in category["sources"]]
+
+
+def sources_html(label: str, paths: list[str]) -> str:
+    refs = " · ".join(f'<a href="{source_link(p)}">{esc(Path(p).name)}</a>' for p in paths)
+    return f'<p class="sources">{label}: {refs}</p>' if paths else ""
+
+
+def sources_md(label: str, paths: list[str]) -> list[str]:
+    return [f"**{label}:** " + " · ".join(f'[{Path(p).name}]({source_link(p)})' for p in paths)] if paths else []
+
+
 def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str:
     f = feature
-    sources = list(dict.fromkeys(f.get("sources", []) + category["sources"]))
-    refs = " · ".join(f'<a href="{source_link(p)}">{esc(Path(p).name)}</a>' for p in sources)
     settings = ""
     if f.get("settings"):
         settings = '<p class="setting-refs">Related settings: ' + ", ".join(
@@ -70,7 +84,7 @@ def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str
     body = f'<p class="where"><strong>Where:</strong> {esc(f["where"])}</p>{ul(f["details"])}'
     if f.get("limits"):
         body += '<div class="limits"><strong>Availability &amp; limits</strong>' + ul(f["limits"]) + "</div>"
-    body += settings + f'<p class="sources">Source: {refs}</p>'
+    body += settings + sources_html("Source", own_sources(category, f))
     if compact:
         body = f'<details><summary>How to use it &amp; limits</summary>{body}</details>'
     return (f'<article class="feature" id="{esc(f["id"])}">'
@@ -80,7 +94,8 @@ def feature_html(category: dict, feature: dict, *, compact: bool = False) -> str
 
 def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
          source: str = "docs/data/feature-catalogue.json",
-         scripts: tuple[str, ...] = ()) -> None:
+         scripts: tuple[str, ...] = (),
+         description: str = "Hypersynergism: current feature guide, installation and wiki for the Synergism quality-of-life mod.") -> None:
     prefix = "../" * depth
     tabs = [("home", "Home", "index.html", "orange"),
             ("features", "Features", "features.html", "green"),
@@ -111,7 +126,7 @@ def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Hypersynergism: current feature guide, installation and wiki for the Synergism quality-of-life mod.">
+  <meta name="description" content="{esc(description)}">
   <meta name="theme-color" content="#18171c">
   <title>{esc(title)} · Hypersynergism</title>
   <link rel="icon" href="{prefix}res/coin.png" type="image/png">
@@ -147,9 +162,21 @@ def feature_md(category: dict, f: dict, *, setting_href=lambda k: f"Settings-Ref
         parts += ["**Availability and limits**", "\n".join(f"- {x}" for x in f["limits"])]
     if f.get("settings"):
         parts += ["**Related settings:** " + ", ".join(f'[`{k}`]({setting_href(k)})' for k in f["settings"])]
-    sources = list(dict.fromkeys(f.get("sources", []) + category["sources"]))
-    parts += ["**Source:** " + " · ".join(f'[{Path(p).name}]({source_link(p)})' for p in sources)]
+    parts += sources_md("Source", own_sources(category, f))
     return "\n\n".join(parts)
+
+
+def category_description(category: dict, limit: int = 160) -> str:
+    """A wiki page's meta description: the category and as many of its feature titles as fit."""
+    text = f'Hypersynergism {category["title"]}: '
+    titles = [f["title"] for f in category["features"]]
+    for n, title in enumerate(titles):
+        last = n == len(titles) - 1
+        part = title + ("." if last else ", ")
+        if len(text) + len(part) > limit:
+            return text.rstrip(", ") + "…"
+        text += part
+    return text
 
 
 def guide_title(cid: str) -> str:
@@ -532,11 +559,11 @@ def changelog_outputs() -> None:
     scope_note = "The release list shows published releases and tagged builds. Links can also open historical source versions. Dates use UTC." if released_only else "Historical builds have a surviving bundle. Source versions are recorded in Git. Dates use UTC."
     body = f'''<h1>Changelog</h1>
 <p>{'Released builds' if released_only else 'Recorded versions'} across the original, Live, Dev and loader channels, newest first.</p>
-<p class="muted">Dev versions come from <a href="https://github.com/maenhiir/synergism-hypersynergy">Shew’s repository</a>. Merge notices link to the source versions brought into each release.</p>
+<p class="muted">Dev versions come from <a href="https://github.com/maenhiir/synergism-hypersynergy">maenhiir’s repository</a>. Merge notices link to the source versions brought into each release.</p>
 <p class="muted">{esc(scope_note)}</p>
 <details class="changelog-sources"><summary>About this history</summary><p>Dates use UTC. When a publication date is unavailable, the preserved tag or its build commit supplies the date. Source links accompany each entry.</p><p>Catch-up releases credit the people who made new changes on the receiving branch and the people who merged them. Incoming work is credited on its source release.</p></details>
 <form class="changelog-controls" role="search" onsubmit="return false">
-<label for="changelog-channel">Channel <select id="changelog-channel"><option value="">All versions</option><option value="original">Original</option><option value="live">Live (Ferlieloi)</option><option value="dev">Dev versions (Shew)</option><option value="loader">Windows loader</option></select></label>
+<label for="changelog-channel">Channel <select id="changelog-channel"><option value="">All versions</option><option value="original">Original</option><option value="live">Live (Ferlieloi)</option><option value="dev">Dev versions (maenhiir)</option><option value="loader">Windows loader</option></select></label>
 <label for="changelog-search">Search versions and changes <input id="changelog-search" type="search" autocomplete="off" placeholder="Version or change"></label>
 <button type="button" id="changelog-clear">Clear</button></form>
 <p id="changelog-count" class="muted" role="status" aria-live="polite">{len(entries)} {'released builds' if released_only else 'versions'}</p>
@@ -544,7 +571,8 @@ def changelog_outputs() -> None:
 <noscript><p>All version entries are available below. Enable JavaScript to filter them.</p></noscript>
 <div id="changelog-list" data-kind="{'released builds' if released_only else 'versions'}">{"".join(cards)}</div>{source_section}'''
     page("docs/changelog.html", "Changelog", "changelog", body, source="docs/data/changelog.json",
-         scripts=("changelog.js",))
+         scripts=("changelog.js",),
+         description="Hypersynergism release notes for every version: original, Live, Dev and Windows loader, newest first.")
 
 
 def settings_outputs() -> None:
@@ -556,19 +584,21 @@ def settings_outputs() -> None:
         c, f = by_setting[key]
         default = json.dumps(s.get("settingValue", s.get("enabled")), ensure_ascii=False)
         state = "Hidden / inline or internal" if s.get("hidden") else "Panel control"
-        page_name = s.get("settingControl", {}).get("controlPage", "")
+        page_id = s.get("settingControl", {}).get("controlPage", "")
+        page_name = CONTROL_PAGES.get(page_id, {}).get("pageName", page_id)
         # Explanatory text comes from the reviewed catalogue: settingHelpText can lag the implementation.
         html_rows.append(f'<tr id="{esc(key)}"><th scope="row"><code>{esc(key)}</code><br>{esc(s["settingDescription"])}</th>'
-                         f'<td>{esc(default)}</td><td>{esc(state)}<br>{esc(page_name)}</td>'
-                         f'<td><a href="{c["id"]}.html#{f["id"]}">{esc(f["title"])}</a></td></tr>')
+                         f'<td data-label="Initial value">{esc(default)}</td><td data-label="Control">{esc(state)}<br><span class="control-page">{esc(page_name)}</span></td>'
+                         f'<td data-label="Feature"><a href="{c["id"]}.html#{f["id"]}">{esc(f["title"])}</a></td></tr>')
         md += [f"## {key}", s["settingDescription"],
                f"- Source default: `{default}`; enabled flag: `{str(s.get('enabled')).lower()}`.\n- Location: {state}{' / ' + page_name if page_name else ''}.\n- Guide: [{f['title']}]({wiki_name(c)}#{slug(f['title'])})."]
     page("docs/wiki/settings.html", "Settings reference", "wiki",
          '<p class="breadcrumb"><a href="index.html">Wiki</a> / Settings</p><h1>Settings reference</h1>'
          f'<p>All {len(SETTINGS)} source-defined settings, including saved header preferences and internal state. Hidden settings often have controls in the header editor or a tool window; others are implementation state.</p>'
          '<p>Defaults below are initial source values. Existing saved preferences, migrations and dependency checks can differ. Use the linked guide for current behavior.</p>'
-         '<div class="table-scroll"><table><caption>Settings and their feature guides</caption><thead><tr><th>Setting</th><th>Initial value</th><th>Control type / page</th><th>Feature</th></tr></thead><tbody>'
-         + "".join(html_rows) + '</tbody></table></div>', depth=1)
+         '<div class="table-scroll"><table class="settings-table"><caption>Settings and their feature guides</caption><thead><tr><th>Setting</th><th>Initial value</th><th>Control type / page</th><th>Feature</th></tr></thead><tbody>'
+         + "".join(html_rows) + '</tbody></table></div>', depth=1,
+         description="Every Hypersynergism setting: what it does, its initial value, where it is set and the feature it belongs to.")
     add("docs/wiki-source/Settings-Reference.md", "\n\n".join(md))
 
 
@@ -596,7 +626,8 @@ def calculation_outputs() -> None:
          '<p class="breadcrumb"><a href="index.html">Wiki</a> / Calculations</p><h1>Calculation reference</h1>'
          f'<p>{len(entries)} entries registered for the Tools calculation picker. Options are provided in-game. Reduction support does not guarantee a full named component breakdown for every entry.</p>'
          '<div class="table-scroll"><table><caption>Registered calculations</caption><thead><tr><th>Calculation</th><th>Function</th><th>Reduction support</th></tr></thead><tbody>'
-         + "".join(rows) + '</tbody></table></div>', depth=1)
+         + "".join(rows) + '</tbody></table></div>', depth=1,
+         description="Every calculation in the Hypersynergism Tools tab's calculation picker.")
 
 
 def guide_link(c: dict, href: str) -> str:
@@ -614,7 +645,8 @@ def guide_outputs() -> None:
         c = next(x for x in CATEGORIES if x["id"] == cid)
         page(f"docs/wiki/{cid}-guide.html", guide_title(cid), "wiki",
              f'<p class="breadcrumb"><a href="index.html">Wiki</a> / <a href="{cid}.html">{esc(c["title"])}</a> / Guide</p>'
-             + guide_html(cid), depth=1, source=f"docs/data/guides/{cid}.md")
+             + guide_html(cid), depth=1, source=f"docs/data/guides/{cid}.md",
+             description=f"{guide_title(cid)}: a players' guide for Hypersynergism, the Synergism quality-of-life mod.")
         add(f"docs/wiki-source/{guide_wiki_name(cid)}.md", GUIDES[cid])
 
 
@@ -672,7 +704,8 @@ def build() -> None:
         for c in CATEGORIES)
     page("docs/features.html", "All features", "features",
          f'<h1>Mod features</h1><p>{feature_count} features across {len(CATEGORIES)} categories. Search includes descriptions, usage and limits. Open a category to see its features, and an entry for its details.</p>'
-         '<noscript><p>Search needs JavaScript; all features and their details remain available below.</p></noscript>' + search + sections)
+         '<noscript><p>Search needs JavaScript; all features and their details remain available below.</p></noscript>' + search + sections,
+         description=f"All {feature_count} Hypersynergism features, searchable: what each does, where to find it and its limits.")
 
     wiki_intro = f'<h1>Hypersynergism wiki</h1><p>Player guides for the maintained mod: what each feature does, where to find it, and its availability and limits.</p>'
     guides_html = ('<h2>Guides</h2><ul>' + "".join(
@@ -683,7 +716,8 @@ def build() -> None:
          '<li><a href="calculations.html">Calculation picker reference</a></li>'
          '<li><a href="../FEATURES.md">Download the complete feature inventory (Markdown)</a></li></ul>'
          '<h2>Help</h2><p>For bugs, describe the game/mod version and how to reproduce the issue. A backup from Tools can include useful diagnostic context; review private data before sharing.</p>'
-         f'<p><a href="{REPO}/issues">Report an issue</a> · <a href="{REPO}/blob/master/docs/README.md">Developer documentation</a></p>', depth=1)
+         f'<p><a href="{REPO}/issues">Report an issue</a> · <a href="{REPO}/blob/master/docs/README.md">Developer documentation</a></p>', depth=1,
+         description="Hypersynergism wiki: a page per feature category, players' guides, and the settings and calculation references.")
     md_home = ["# Hypersynergism wiki", f"Player documentation for the maintained [Hypersynergism mod]({REPO}).",
                "## Feature guides", "\n".join(f'- [{c["title"]}]({wiki_name(c)})' for c in CATEGORIES)] + guides_md + [
                "## Reference", "- [All features](Mod-Features)\n- [Settings and remembered preferences](Settings-Reference)\n- [Calculation picker](Calculation-Reference)",
@@ -700,18 +734,19 @@ def build() -> None:
     for c in CATEGORIES:
         native_index += [f'## {c["title"]}', c["intro"], "\n".join(
             f'- [{f["title"]}]({wiki_name(c)}#{slug(f["title"])}): {f["summary"]}' for f in c["features"])]
-        md = [f'# {c["title"]}', c["intro"]] + guide_link_md(c, guide_wiki_name(c["id"])) + [
+        md = [f'# {c["title"]}', c["intro"]] + sources_md("Sources for this category", c["sources"]) + guide_link_md(c, guide_wiki_name(c["id"])) + [
               "## On this page", "\n".join(f'- [{f["title"]}](#{slug(f["title"])})' for f in c["features"])]
         md += [feature_md(c, f) for f in c["features"]]
         add(f'docs/wiki-source/{wiki_name(c)}.md', "\n\n".join(md))
         # The standalone inventory links to the website: the GitHub Wiki only points to it.
-        inventory += [f'## {c["title"]}', c["intro"]] + guide_link_md(c, f'{SITE}wiki/{c["id"]}-guide.html') + [
+        inventory += [f'## {c["title"]}', c["intro"]] + sources_md("Sources for this category", c["sources"]) + guide_link_md(c, f'{SITE}wiki/{c["id"]}-guide.html') + [
             feature_md(c, f, setting_href=lambda k: f"{SITE}wiki/settings.html#{quote(k)}") for f in c["features"]]
         toc = '<ul class="wiki-toc">' + "".join(f'<li><a href="#{f["id"]}">{esc(f["title"])}</a></li>' for f in c["features"]) + '</ul>'
         page(f'docs/wiki/{c["id"]}.html', c["title"], "wiki",
              f'<p class="breadcrumb"><a href="index.html">Wiki</a> / {esc(c["title"])}</p>'
-             f'<h1>{esc(c["title"])}</h1><p>{esc(c["intro"])}</p>{guide_link(c, c["id"] + "-guide.html")}{toc}'
-             + "".join(feature_html(c, f) for f in c["features"]), depth=1)
+             f'<h1>{esc(c["title"])}</h1><p>{esc(c["intro"])}</p>{sources_html("Sources for this category", c["sources"])}'
+             f'{guide_link(c, c["id"] + "-guide.html")}{toc}'
+             + "".join(feature_html(c, f) for f in c["features"]), depth=1, description=category_description(c))
     add("docs/wiki-source/Mod-Features.md", "\n\n".join(native_index))
     add("docs/FEATURES.md", "\n\n".join(inventory))
     settings_outputs()
@@ -722,13 +757,15 @@ def build() -> None:
     page("docs/github.html", "Github", "github", f'''<h1>Github</h1>
 <p>Source, downloads, issues and the original project.</p>
 <a href="{REPO}" aria-label="Open the maintained repository"><img src="res/github.png" id="github-logo" width="180" height="67" alt="GitHub"></a>
-<ul><li><a href="{REPO}">Maintained Live repository</a></li><li><a href="{REPO}/releases">Releases &amp; Windows loader</a></li><li><a href="{REPO}/issues">Bug reports &amp; requests</a></li><li><a href="https://github.com/maenhiir/synergism-hypersynergy">Dev channel</a></li><li><a href="https://github.com/ahvonenj/synergism-hypersynergy">Original repository</a></li><li><a href="https://github.com/Pseudo-Corp/SynergismOfficial">Synergism game source</a></li></ul>''')
+<ul><li><a href="{REPO}">Maintained Live repository</a></li><li><a href="{REPO}/releases">Releases &amp; Windows loader</a></li><li><a href="{REPO}/issues">Bug reports &amp; requests</a></li><li><a href="https://github.com/maenhiir/synergism-hypersynergy">Dev channel</a></li><li><a href="https://github.com/ahvonenj/synergism-hypersynergy">Original repository</a></li><li><a href="https://github.com/Pseudo-Corp/SynergismOfficial">Synergism game source</a></li></ul>''',
+         description="Hypersynergism on GitHub: source, releases, the Windows loader and bug reports.")
     page("docs/about.html", "About", "about", '''<h1>About Hypersynergism</h1>
-<p>A community mod for <a href="https://synergism.cc/">Synergism</a>. Originally created by <a href="https://github.com/ahvonenj">ahvonenj</a>, now maintained by <a href="https://github.com/Ferlieloi">Ferlieloi</a>, <a href="https://github.com/maenhiir">maenhiir</a> and contributors.</p>
+<p>A community mod for <a href="https://synergism.cc/">Synergism</a>. Originally created by <a href="https://github.com/ahvonenj">ahvonenj</a>, now maintained by <a href="https://github.com/Ferlieloi">Ferlieloi</a> (XxmolkxX), <a href="https://github.com/maenhiir">maenhiir</a> (Shewchou) and contributors.</p>
 <h2>The original style</h2><p>This guide adapts the <a href="https://ahvonenj.github.io/synergism-hypersynergy/">original Hypersynergism website</a>: the dark background, resource icons, compact colored tabs and straightforward text layout.</p>
 <p>The original website CSS is retained with responsive and accessibility additions. The game-inspired images come from the original site's resources; Synergism artwork belongs to its respective creators. Neither the mod nor this guide is an official game website.</p>
 <h2>Privacy</h2><p>This documentation site uses no analytics, cookies, account system or game-save uploads. Search runs in your browser. Following external links uses those services.</p>
-<h2>License &amp; acknowledgements</h2><p>The repository's <a href="https://github.com/Ferlieloi/synergism-hypersynergy/blob/master/LICENSE">MIT license</a> and upstream credits are retained. Documentation describes the audited source; availability can vary with progression, platform and game patches.</p>''')
+<h2>License &amp; acknowledgements</h2><p>The repository's <a href="https://github.com/Ferlieloi/synergism-hypersynergy/blob/master/LICENSE">MIT license</a> and upstream credits are retained. Documentation describes the audited source; availability can vary with progression, platform and game patches.</p>''',
+         description="Who makes Hypersynergism, where the website's style comes from, privacy and license.")
     add("docs/.nojekyll", "")
     source_rows = ["# Feature audit and maintenance", "The reviewed catalogue is `docs/data/feature-catalogue.json`. Website pages, `docs/FEATURES.md` and `docs/wiki-source/` are generated; edit the catalogue, then run `python scripts/tools/build-docs.py`.",
                    f"Audit source: [{CATALOGUE['audited_commit']}]({REPO}/commit/{CATALOGUE['audited_commit']}). The generator reads the package version, settings registry and calculation registry from the checkout. When re-auditing, update the audit commit only after reviewing behavior changes.",
