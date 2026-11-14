@@ -64,11 +64,11 @@ How the player website is built and how it behaves. How to update and publish it
 - Limits: the browser's find (Ctrl+F) doesn't search folded categories (`hidden="until-found"` would clash with the `hidden` the filter sets). On a slow first visit, the full list may show for a moment before the script folds it.
 
 ## Wiki pages (`docs/wiki/`)
-- **Index:** the categories, the guides, the references (settings, calculations, `FEATURES.md` as a file), how to report a bug, a link to the GitHub Wiki.
+- **Index:** the categories, the guides, the references (settings, calculations, `FEATURES.md` as a file), how to report a bug. No link to the GitHub Wiki: it only points back here.
 - **Category page:** its intro, its guide, a table of contents, then every feature in full (no folding, nothing to open), with the same anchors as the features page.
 - **Settings:** one row per setting, in `hs-settings.json` order, anchored by its key: its `settingDescription` (not the help text), initial value (`settingValue`, else `enabled`), "Panel control" or "Hidden / inline or internal" with its control page, and its feature.
 - **Calculations:** the calculation picker's entries (`toolingSupport: true`), sorted by name, with their function and whether they support reduction. Read by pattern from the TypeScript file: the build fails only if it finds none.
-- **`FEATURES.md`:** every category and feature in one Markdown file, linking to the GitHub Wiki's pages. **`FEATURE-AUDIT.md`:** counts and each category's sources, under the original audit's fixed text.
+- **`FEATURES.md`:** every category and feature in one Markdown file; its settings and guides link to the website (address built from the catalogue's `repository`). **`FEATURE-AUDIT.md`:** counts and each category's sources, under the original audit's fixed text.
 
 ## Changelog page (`changelog.html`, `changelog.js`)
 - **Display:** every entry, newest first (date, then version, then channel). A card: the version (linked to its GitHub release if any), a channel badge (Original, Live, Dev version, Loader), the date and, for a version record, "Historical build" (a source labelled "Build containing …") or "Source version"; contributors; merge notices; changes grouped Added / Changed / Removed / Fixed; notes; sources, folded.

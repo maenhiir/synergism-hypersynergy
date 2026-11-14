@@ -24,6 +24,9 @@ CATEGORIES = CATALOGUE["categories"]
 FEATURES = [f for c in CATEGORIES for f in c["features"]]
 REPO = "https://github.com/" + CATALOGUE["repository"]
 SOURCE = REPO + "/blob/master/"
+# Pages serves the repository root, so the site's pages sit under docs/ (docs/features/website.md, "Hosting").
+_OWNER, _NAME = CATALOGUE["repository"].split("/")
+SITE = f"https://{_OWNER.lower()}.github.io/{_NAME}/docs/"
 OUTPUTS: dict[str, str] = {}
 # Hand-written guides, one per category at most: docs/data/guides/<category id>.md, starting with a "# Title" line.
 GUIDES = {p.stem: p.read_text(encoding="utf-8").replace("\r\n", "\n")
@@ -137,13 +140,13 @@ def page(path: str, title: str, tab: str, body: str, *, depth: int = 0,
 </html>''')
 
 
-def feature_md(category: dict, f: dict) -> str:
+def feature_md(category: dict, f: dict, *, setting_href=lambda k: f"Settings-Reference#{k.lower()}") -> str:
     parts = [f'### {f["title"]}', f["summary"], f'**Where:** {f["where"]}',
              "\n".join(f"- {x}" for x in f["details"])]
     if f.get("limits"):
         parts += ["**Availability and limits**", "\n".join(f"- {x}" for x in f["limits"])]
     if f.get("settings"):
-        parts += ["**Related settings:** " + ", ".join(f'[`{k}`](Settings-Reference#{k.lower()})' for k in f["settings"])]
+        parts += ["**Related settings:** " + ", ".join(f'[`{k}`]({setting_href(k)})' for k in f["settings"])]
     sources = list(dict.fromkeys(f.get("sources", []) + category["sources"]))
     parts += ["**Source:** " + " · ".join(f'[{Path(p).name}]({source_link(p)})' for p in sources)]
     return "\n\n".join(parts)
@@ -452,7 +455,7 @@ def changelog_outputs() -> None:
     cards = []
     for entry in entries:
         version = esc(entry["version"])
-        release = entry["release_url"]
+        release = entry.get("release_url")
         version_title = f'<a href="{esc(release)}">v{version}</a>' if release else f'v{version}'
         status_label = ""
         if entry["status"] == "version-record":
@@ -465,7 +468,7 @@ def changelog_outputs() -> None:
             profile = profiles[credit["id"]]
             name = esc(profile["name"])
             contributor_names.extend([profile["name"], *profile.get("aliases", [])])
-            label = f'<a href="{esc(profile["url"])}">{name}</a>' if profile["url"] else name
+            label = f'<a href="{esc(profile["url"])}">{name}</a>' if profile.get("url") else name
             if credit["roles"] == ["release"]:
                 label += ' <span class="muted">(version record)</span>' if entry["status"] == "version-record" else ' <span class="muted">(release)</span>'
             if "merge" in credit["roles"]:
@@ -671,7 +674,7 @@ def build() -> None:
          f'<h1>Mod features</h1><p>{feature_count} features across {len(CATEGORIES)} categories. Search includes descriptions, usage and limits. Open a category to see its features, and an entry for its details.</p>'
          '<noscript><p>Search needs JavaScript; all features and their details remain available below.</p></noscript>' + search + sections)
 
-    wiki_intro = f'<h1>Hypersynergism wiki</h1><p>Player guides for the maintained mod: what each feature does, where to find it, and its availability and limits.</p><p>Also available in the <a href="{REPO}/wiki">GitHub Wiki</a>.</p>'
+    wiki_intro = f'<h1>Hypersynergism wiki</h1><p>Player guides for the maintained mod: what each feature does, where to find it, and its availability and limits.</p>'
     guides_html = ('<h2>Guides</h2><ul>' + "".join(
         f'<li><a href="{cid}-guide.html">{esc(guide_title(cid))}</a></li>' for cid in GUIDES) + '</ul>') if GUIDES else ""
     guides_md = ["## Guides", "\n".join(f"- [{guide_title(cid)}]({guide_wiki_name(cid)})" for cid in GUIDES)] if GUIDES else []
@@ -701,9 +704,9 @@ def build() -> None:
               "## On this page", "\n".join(f'- [{f["title"]}](#{slug(f["title"])})' for f in c["features"])]
         md += [feature_md(c, f) for f in c["features"]]
         add(f'docs/wiki-source/{wiki_name(c)}.md', "\n\n".join(md))
-        # Use absolute native-wiki links in the standalone inventory.
-        inventory += [f'## {c["title"]}', c["intro"]] + guide_link_md(c, f'{REPO}/wiki/{guide_wiki_name(c["id"])}') + [
-            feature_md(c, f).replace("](Settings-Reference#", f"]({REPO}/wiki/Settings-Reference#") for f in c["features"]]
+        # The standalone inventory links to the website: the GitHub Wiki only points to it.
+        inventory += [f'## {c["title"]}', c["intro"]] + guide_link_md(c, f'{SITE}wiki/{c["id"]}-guide.html') + [
+            feature_md(c, f, setting_href=lambda k: f"{SITE}wiki/settings.html#{quote(k)}") for f in c["features"]]
         toc = '<ul class="wiki-toc">' + "".join(f'<li><a href="#{f["id"]}">{esc(f["title"])}</a></li>' for f in c["features"]) + '</ul>'
         page(f'docs/wiki/{c["id"]}.html', c["title"], "wiki",
              f'<p class="breadcrumb"><a href="index.html">Wiki</a> / {esc(c["title"])}</p>'

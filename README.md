@@ -31,8 +31,8 @@ Here are some of Hypersynergism’s standout features:
 
 See the [complete feature inventory](docs/FEATURES.md) for usage, settings, availability and source references,
 including smaller remembered preferences and header customization. The repository also includes a static
-[website](docs/index.html) with a browsable player wiki. Native GitHub Wiki pages are prepared from the same
-catalogue; [publishing instructions](docs/dev/publishing-guide.md) cover both destinations.
+[website](docs/index.html) with a browsable player wiki; the GitHub Wiki points to it. How to update and publish
+it: [publishing instructions](docs/dev/publishing-guide.md).
 
 ### 🎮 On Steam (Windows only)
 
