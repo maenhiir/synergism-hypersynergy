@@ -2,6 +2,7 @@
 """Build the public site, feature inventory and GitHub Wiki from one catalogue.
 
 No dependencies or network access. Existing developer documents are inputs only.
+What each page is built from and how it behaves: docs/features/website.md.
 Run from any directory: python scripts/tools/build-docs.py [--check | --validate | --changelog-only]
 """
 from __future__ import annotations

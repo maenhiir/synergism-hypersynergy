@@ -1,6 +1,6 @@
 # Publishing the player guide and wiki
 
-The site uses GitHub Pages, matching the original project. No Sites/Cloudflare project, database, runtime dependencies or additional hosting account is needed. Existing `docs/features/`, `docs/game/` and `docs/dev/` remain developer documentation.
+The site uses GitHub Pages, matching the original project. No Sites/Cloudflare project, database, runtime dependencies or additional hosting account is needed. Existing `docs/features/`, `docs/game/` and `docs/dev/` remain developer documentation. How the site is built and how it behaves: `docs/features/website.md`.
 
 ## Update the content
 
