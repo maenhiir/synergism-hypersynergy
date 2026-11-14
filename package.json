@@ -26,6 +26,7 @@
     "build:loaders": "node scripts/build-loaders.cjs",
     "release": "node esbuild.config.js release",
     "dev": "node esbuild.config.js dev",
+    "site": "node scripts/tools/watch-site.cjs",
     "release-and-tag-helper": "node scripts/release-and-tag-helper.mjs",
     "merge-live": "node scripts/merge-live-release.mjs"
   },
