@@ -3,7 +3,7 @@
 
 No dependencies or network access. Existing developer documents are inputs only.
 What each page is built from and how it behaves: docs/features/website.md.
-Run from any directory: python scripts/tools/build-docs.py [--check | --validate | --changelog-only]
+Run from any directory: python scripts/tools/build-docs.py [--check | --validate | --changelog-only] [--out DIR]
 """
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import argparse
 import html
 import json
 import re
+import shutil
 from datetime import date as date_type
 from pathlib import Path
 from urllib.parse import quote, urlparse
@@ -787,9 +788,17 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="Verify generated files are current without writing")
     parser.add_argument("--validate", action="store_true", help="Validate the catalogue against the checkout and the changelog, without generating anything")
     parser.add_argument("--changelog-only", action="store_true", help="Generate or check only docs/changelog.html")
+    parser.add_argument("--out", metavar="DIR", type=Path,
+                        help="Write the site to DIR instead of the checkout, with the hand-written css/, js/ and res/ "
+                             "copied next to it (open DIR/docs/index.html): a preview that leaves docs/ untouched")
     args = parser.parse_args()
     if args.validate and args.changelog_only:
         parser.error("--validate and --changelog-only cannot be combined")
+    if args.out and (args.check or args.validate):
+        parser.error("--out only writes: it cannot be combined with --check or --validate")
+    out = args.out.resolve() if args.out else ROOT
+    if args.out and out == ROOT:
+        parser.error("--out must be another folder than the checkout (omit it to write the checkout)")
     if args.validate:
         validate_catalogue()
         validate_changelog(json.loads((DOCS / "data/changelog.json").read_text(encoding="utf-8")))
@@ -803,7 +812,7 @@ def main() -> None:
         build()
     stale = []
     for name, content in OUTPUTS.items():
-        p = ROOT / name
+        p = out / name
         if args.check:
             if not p.is_file() or p.read_text(encoding="utf-8") != content:
                 stale.append(name)
@@ -812,7 +821,12 @@ def main() -> None:
             p.write_text(content, encoding="utf-8", newline="\n")
     if stale:
         raise SystemExit("Generated documentation is stale:\n" + "\n".join(stale))
-    print(f"{'Checked' if args.check else 'Built'} {len(OUTPUTS)} files: {len(FEATURES)} features, {len(CATEGORIES)} categories, {len(SETTINGS)} settings.")
+    if args.out:
+        # The pages' hand-written assets, served as they are (docs/features/website.md, "Sources and outputs").
+        for assets in ("css", "js", "res"):
+            shutil.copytree(DOCS / assets, out / "docs" / assets, dirs_exist_ok=True)
+    print(f"{'Checked' if args.check else 'Built'} {len(OUTPUTS)} files: {len(FEATURES)} features, {len(CATEGORIES)} categories, {len(SETTINGS)} settings."
+          + (f" Open {out / 'docs' / 'index.html'}" if args.out else ""))
 
 
 if __name__ == "__main__":

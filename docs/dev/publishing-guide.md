@@ -62,6 +62,8 @@ The attribution helper does not fetch or publish. Review any new identity before
 
 Open `docs/index.html` directly in a browser: the complete site, wiki, relative assets and feature search work without a server. Alternatively run `python -m http.server 8080 --directory docs` and visit `http://localhost:8080/`. No game save is needed.
 
+On Dev, whose checked-in pages lag the data, preview without touching `docs/`: `python scripts/tools/build-docs.py --out local/site` builds the site into the git-ignored `local/site/` and copies `css/`, `js/` and `res/` next to it; open `local/site/docs/index.html`.
+
 Check these flows at desktop and narrow/mobile widths:
 
 - Home → each colored navigation tab → Back to top. The tab matches the page and text is readable.

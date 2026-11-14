@@ -23,7 +23,7 @@ How the player website is built and how it behaves. How to update and publish it
 
 - **Read from the checkout**: version, settings and calculations come from the branch the generator runs on (why Dev's pages would show Dev's version and settings).
 - **Hand-written, served as they are:** `docs/css/original.css` (the original website's style, kept close to it), `docs/css/guide.css` (every adaptation; style changes go here), `docs/js/guide.js` (loaded on every page, acts only on the features page), `docs/js/changelog.js` (changelog page only), `docs/res/` (icons, GitHub logo, mod logo). A change there reaches the site without regenerating.
-- **Modes:** no option writes every file; `--check` compares without writing; `--validate` runs the catalogue, guide and changelog checks and writes nothing; `--changelog-only` writes or checks only `changelog.html` (after the catalogue checks). Outputs use LF.
+- **Modes:** no option writes every file; `--check` compares without writing; `--validate` runs the catalogue, guide and changelog checks and writes nothing; `--changelog-only` writes or checks only `changelog.html` (after the catalogue checks); `--out DIR` writes to `DIR` (same layout, `DIR/docs/...`) instead of the checkout and copies the hand-written `css/`, `js/` and `res/` there, for a preview that leaves `docs/` untouched (not with `--check` or `--validate`). Outputs use LF.
 - **Checks not run by `npm test`** (it runs only `*.cjs`): `python scripts/tests/test-changelog-validation.py` (changelog validation and credit rules) and `node --check` on the two scripts.
 
 ## Feature catalogue (`feature-catalogue.json`)
