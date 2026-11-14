@@ -43,7 +43,7 @@ How the player website is built and how it behaves. How to update and publish it
 
 ## Every page
 - **Header:** five counters (features, categories, settings, "Live Channel" or "All Channels" on the changelog, "QoL + opt-in AutoSing"), "Hypersynergism Guide for v<version>" (colour-cycling), the maintainers line, six tabs: Home orange, Features green, Wiki cyan, Changelog plum, Github light blue, About white. The current tab is filled with its colour and a line of that colour runs under the tabs. No fixed height: the game's header keeps room for a third row, which left an empty band above the tabs (not kept: long pages need the room). Footer: source, credits, back to top.
-- **The content is a column centred in the window** (at most 1080 px, footer included), its text left-aligned; the header spans the whole width, like the game's.
+- **The content is a column centred in the window** (at most 1200 px, footer included, paragraphs at most 112 characters wide), its text left-aligned; the header spans the whole width, like the game's.
 - **Each page has its own `<meta name="description">`** (search results, link previews): a line passed to `page()`, the general sentence on the home page; a wiki category page lists its category and as many feature titles as fit in 160 characters, so it never goes stale.
 - **Maintainers are named by their GitHub names** (Ferlieloi, maenhiir); the About page and the catalogue's "Live and Dev channels" entry add the other names players know (XxmolkxX, Shewchou).
 - **Every page works without JavaScript**: everything is shown, only search and folding need it.
