@@ -18,7 +18,8 @@ nav { margin-top: 10px; }
 #tabs a[aria-current="page"] { background: var(--tab-color); color: #101015; }
 #border { flex-shrink: 0; }
 #page-container { min-height: 0; overflow-x: hidden; scroll-behavior: smooth; }
-.page-wrapper { padding-left: 15px; padding-right: 0; max-width: 1080px; line-height: 1.6; }
+/* A column centred in the window; its text stays left-aligned. */
+.page-wrapper { padding-left: 15px; padding-right: 0; max-width: 1080px; margin: 0 auto; line-height: 1.6; }
 .page-wrapper h1 { font-size: 2em; line-height: 1.25; margin: 8px 0 22px; }
 .page-wrapper h2 { margin: 28px 0 12px 10px; line-height: 1.3; }
 .page-wrapper h3 { font-size: 1.08em; line-height: 1.4; margin: 20px 0 8px 20px; }
