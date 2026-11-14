@@ -127,7 +127,7 @@ def category_icon(category: dict, prefix: str, size: int) -> str:
 def category_list(prefix: str, wiki_prefix: str) -> str:
     """Home and wiki index: every category, its icon, its wiki page and feature count."""
     return '<ul class="category-list">' + "".join(
-        f'<li>{category_icon(c, prefix, 20)}<a href="{wiki_prefix}{c["id"]}.html">{esc(c["title"])}</a> '
+        f'<li>{category_icon(c, prefix, 24)}<a href="{wiki_prefix}{c["id"]}.html">{esc(c["title"])}</a> '
         f'<span class="muted">({len(c["features"])})</span></li>' for c in CATEGORIES) + '</ul>'
 
 

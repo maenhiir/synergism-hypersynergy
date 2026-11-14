@@ -44,7 +44,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
    guide.js turns the heading into a toggle. */
 .category-icon { vertical-align: middle; margin: -4px 10px 0 0; }
 .page-wrapper h1 .category-icon { margin-right: 12px; }
-.category-list .category-icon { margin: -3px 8px 0 0; }
+/* 24 px icons in a 25.6 px line: negative vertical margins keep the rows as tall as the text alone. */
+.category-list .category-icon { margin: -5px 8px -3px 0; }
 .fold-toggle .category-icon { align-self: center; margin: 0; }
 .feature-category h2 { border-bottom: 1px solid var(--category-color); color: var(--category-color); padding-bottom: 9px; }
 .fold-toggle, .fold-toggle:hover { display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; }
