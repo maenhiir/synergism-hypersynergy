@@ -13,6 +13,7 @@ import animationsCSS from "inline:../../resource/css/hs-animations.css";
 import utilitiesCSS from "inline:../../resource/css/hs-utilities.css";
 import panelHTML from "inline:../../resource/html/hs-panel.html";
 import modPanelIcon from "../../resource/img/hs-panel-icon.png";
+import heaterIcon from "../../resource/img/hs-heater-icon.png";
 import { escapeLogText } from "../hs-utils/hs-escape";
 
 /**
@@ -454,8 +455,10 @@ export class HSUI extends HSModule {
         const quickMenu = this.#buildQuickAccessMenuContainer();
         this.#uiQuickAccessMenu = quickMenu;
         const autoSingBtn     = this.#buildQuickAccessButton('autosing',   '▶', 'Start Auto-Sing (S216+)', () => this.#toggleAutoSing());
-        const heaterHSBtn     = this.#buildQuickAccessButton('amb-heater', '🔥', 'Amb Heater (HS)',         () => this.#triggerHeaterHS());
-        const heaterExportBtn = this.#buildQuickAccessButton('amb-heater', '🔥', 'Amb Heater (Export)',     () => this.#triggerHeaterExport());
+        // negative margins: the icon doesn't make its row taller than the text rows
+        const heaterIconHtml  = `<img src="${heaterIcon}" alt="" width="20" height="20" style="vertical-align: middle; margin: -3px 0;">`;
+        const heaterHSBtn     = this.#buildQuickAccessButton('amb-heater', heaterIconHtml, 'Amb Heater (HS)',     () => this.#triggerHeaterHS());
+        const heaterExportBtn = this.#buildQuickAccessButton('amb-heater', heaterIconHtml, 'Amb Heater (Export)', () => this.#triggerHeaterExport());
 
         quickMenu.appendChild(heaterHSBtn);
         quickMenu.appendChild(heaterExportBtn);
@@ -472,6 +475,7 @@ export class HSUI extends HSModule {
         return quickMenu;
     }
 
+    /** `icon` is HTML: a character or an `<img>`. */
     #buildQuickAccessButton(type: string, icon: string, label: string, onClick: () => void): HTMLButtonElement {
         const button = document.createElement('button');
         button.innerHTML = `
